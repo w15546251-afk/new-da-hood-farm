@@ -538,7 +538,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---             CASHIER FARM LOGIC (STABLE ANCHOR 1.4s)              --
+--             CASHIER FARM LOGIC (SUPER FAST TWEEN)                --
 --[================================================================]--
 
 task.spawn(function()
@@ -579,11 +579,19 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Set exact position and anchor once
-                        rootPart.CFrame = cashierCf
+                        -- Super fast high-speed tween into the cashier position
+                        local distance = (rootPart.Position - cashierCf.Position).Magnitude
+                        local tweenDuration = math.clamp(distance / 800, 0.05, 0.25) -- extremely fast glide
+                        
+                        local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+                        local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = cashierCf})
+                        tween:Play()
+                        tween.Completed:Wait()
+
+                        -- Lock anchor in place so it doesn't move
                         rootPart.Anchored = true
                         lastTeleportTick = tick()
-                        task.wait(0.15)
+                        task.wait(0.1)
 
                         equipCombatTool()
                         task.wait(0.1)
@@ -595,7 +603,7 @@ task.spawn(function()
 
                             equipCombatTool()
 
-                            -- Charge Attack Sequence (1.4s duration without resetting position mid-charge)
+                            -- 1.4s Charge Attack Sequence
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
                                 task.wait(1.4) 
