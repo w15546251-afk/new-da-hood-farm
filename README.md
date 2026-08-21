@@ -14,7 +14,7 @@ local Config = {
     MaxAttempts = 2,                                        
     TeleportWait = 2.0,                                         
     NotificationDuration = 3,
-    CollectCooldown = 0.5, -- Throttling delay for click detector firing
+    CollectCooldown = 0.5,
 }
 
 -- State Variables
@@ -74,7 +74,6 @@ local function equipCombatTool()
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if not humanoid then return false end
 
-    -- Check if already equipped
     if char:FindFirstChild("Combat") then
         return true
     end
@@ -84,7 +83,7 @@ local function equipCombatTool()
         local combatTool = backpack:FindFirstChild("Combat")
         if combatTool then
             humanoid:EquipTool(combatTool)
-            task.wait(0.1) -- Allow tool equip to process
+            task.wait(0.1)
             return true
         end
     end
@@ -92,7 +91,6 @@ local function equipCombatTool()
     return false
 end
 
--- Function to find the exact "Open" part of a cashier model as specified
 local function getCashierDamagePart(cashier)
     if not cashier then return nil end
     if cashier:IsA("Model") then
@@ -186,11 +184,10 @@ task.spawn(function()
     end
 end)
 
--- Direct ClickDetector Fire for Money Drops using workspace.Ignored.Drop path (Throttled)
+-- Direct ClickDetector Fire for Money Drops
 local function collectMoneyViaClickDetector(dropObj)
     if not dropObj or not dropObj.Parent then return false end
 
-    -- Enforce throttle delay
     if tick() - lastCollectTick < Config.CollectCooldown then
         return false
     end
@@ -219,33 +216,7 @@ local function collectMoneyViaClickDetector(dropObj)
     return false
 end
 
--- Strict Upright Stabilizer with Continuous Face Lock during Cashier Farm
-RunService.Heartbeat:Connect(function()
-    if isAutoFarmRunning or isCashierFarmRunning then
-        local char = LocalPlayer.Character
-        if char then
-            local rootPart = char:FindFirstChild("HumanoidRootPart")
-            local humanoid = char:FindFirstChildOfClass("Humanoid")
-            if rootPart then
-                if humanoid then
-                    humanoid.PlatformStand = false
-                end
-                if not rootPart.Anchored then
-                    local currentPos = rootPart.Position
-                    local lookVec = rootPart.CFrame.LookVector
-                    local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
-                    if flatLook.Magnitude > 0.01 then
-                        rootPart.CFrame = CFrame.new(currentPos, currentPos + flatLook)
-                        rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
-                        rootPart.AssemblyAngularVelocity = Vector3.zero
-                    end
-                end
-            end
-        end
-    end
-end)
-
--- MONEY COLLECTOR SWEEP (Using workspace.Ignored.Drop)
+-- MONEY COLLECTOR SWEEP
 local function collectMoneyDropsByTweeningWithin30Studs()
     local startTime = tick()
     
@@ -578,7 +549,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---      CASHIER FARM LOGIC (TARGETING BACK OF 'Open' PART)       --
+--      CASHIER FARM LOGIC (ANCHORED INSIDE WITH FULL CHARGE)     --
 --[================================================================]--
 
 task.spawn(function()
@@ -618,12 +589,11 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Position directly behind the "Open" part looking forward through it
+                        -- Position directly anchored inside the core of the cashier part
                         local partPos = damagePart.Position
-                        local standPos = partPos - (damagePart.CFrame.LookVector * 1.5)
-                        local targetCashierCf = CFrame.new(standPos, partPos)
+                        local targetCashierCf = CFrame.new(partPos, partPos + damagePart.CFrame.LookVector)
 
-                        local distance = (rootPart.Position - standPos).Magnitude
+                        local distance = (rootPart.Position - partPos).Magnitude
                         local tweenDuration = math.clamp(distance / 700, 0.05, 0.15)
                         
                         local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
@@ -640,7 +610,7 @@ task.spawn(function()
 
                         local startTime = tick()
                         
-                        -- LOCKED BEHIND CASHIER UNTIL COMPLETELY BROKEN LOOP
+                        -- LOCKED INSIDE UNTIL COMPLETELY BROKEN WITH TRUE FULL CHARGE ATTACK
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do
                             if tick() - startTime > 30 then break end 
 
@@ -649,20 +619,19 @@ task.spawn(function()
                                 break
                             end
 
-                            -- Force absolute locked position and facing into the back of the cashier part
-                            rootPart.CFrame = CFrame.new(standPos, partPos)
-                            workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, partPos)
+                            -- Keep character locked inside the cashier part
+                            rootPart.CFrame = targetCashierCf
                             
                             equipCombatTool()
 
-                            -- Reliable Charge Attack Sequence with 1.4 second hold duration
+                            -- Reliable Full Heavy Charge Attack (1.5 seconds hold)
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(1.4) -- Held down for precisely 1.4 seconds to charge heavy attack
+                                task.wait(1.5) -- True full charge duration
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
-                            task.wait(0.4) -- Cooldown between swings
+                            task.wait(0.3) -- Cooldown between full swings
                         end
 
                         unequipActiveTool()
