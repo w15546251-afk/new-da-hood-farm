@@ -190,7 +190,7 @@ end)
 local function collectMoneyViaClickDetector(dropObj)
     if not dropObj or not dropObj.Parent then return false end
 
-    -- Enforce 0.5 second cooldown check
+    -- Enforce throttle delay
     if tick() - lastCollectTick < Config.CollectCooldown then
         return false
     end
@@ -302,7 +302,7 @@ local function collectMoneyDropsByTweeningWithin30Studs()
                 tween.Completed:Wait()
                 
                 collectMoneyViaClickDetector(dropData.obj)
-                task.wait(Config.CollectCooldown) -- Honor the throttle delay
+                task.wait(Config.CollectCooldown)
             end
         end
     end
@@ -618,8 +618,9 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
+                        -- Position directly in front of the "Open" part looking right at it
                         local partPos = damagePart.Position
-                        local standPos = partPos + (damagePart.CFrame.RightVector * 1.2) + (damagePart.CFrame.LookVector * 0.5)
+                        local standPos = partPos + (damagePart.CFrame.LookVector * 1.5)
                         local targetCashierCf = CFrame.new(standPos, partPos)
 
                         local distance = (rootPart.Position - standPos).Magnitude
@@ -639,7 +640,7 @@ task.spawn(function()
 
                         local startTime = tick()
                         
-                        -- RELIABLE CHARGE ATTACK & LOCKED FACING LOOP
+                        -- STABLE CHARGE ATTACK & LOCKED FACING LOOP
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do
                             if tick() - startTime > 15 then break end 
 
@@ -648,21 +649,20 @@ task.spawn(function()
                                 break
                             end
 
-                            -- Force absolute facing lock towards the 'Open' part at all times
+                            -- Force absolute facing lock directly into the front of the cashier part
                             rootPart.CFrame = CFrame.new(rootPart.Position, Vector3.new(damagePart.Position.X, rootPart.Position.Y, damagePart.Position.Z))
                             workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, damagePart.Position)
                             
-                            -- Ensure tool remains equipped every cycle
                             equipCombatTool()
 
-                            -- Reliable Charge Attack: Check if tool is active and send stable press/hold/release events
+                            -- Reliable Charge Attack Sequence with proper pacing to prevent spam clicking
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(0.8) -- Stable charge hold duration
+                                task.wait(1.0) -- Hold down long enough for the charge attack to build power
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
-                            task.wait(0.2) -- Brief cooldown between charges to let damage register
+                            task.wait(0.5) -- Pacing delay between attacks so the game can process hits accurately
                         end
 
                         unequipActiveTool()
