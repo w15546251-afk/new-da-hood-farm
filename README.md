@@ -13,7 +13,7 @@ local LocalPlayer = Players.LocalPlayer
 local Config = {
     Delay = 0.5,                                        
     MaxAttempts = 2,                                    
-    TeleportWait = 3.0,                                 
+    TeleportWait = 2.5,                                 
     TeleportDistanceThreshold = 5,      
     CashierMoneyDropsToCollect = 4,     
     NotificationDuration = 3,
@@ -128,30 +128,6 @@ local function getObjectCFrame(obj)
     return nil
 end
 
-local function isValidCashier(cashier)
-    if not cashier or not cashier.Parent then return false end
-    
-    local isValid = false
-    pcall(function()
-        local humanoid = cashier:FindFirstChild("Humanoid")
-        if humanoid then
-            local hp = humanoid.Health
-            if hp >= 1 and hp <= 100 then
-                isValid = true
-            end
-        else
-            local part = getCashierDamagePart(cashier)
-            if part and part:IsA("BasePart") then
-                if part.Transparency < 0.9 and part.CanCollide then
-                    isValid = true
-                end
-            end
-        end
-    end)
-    
-    return isValid
-end
-
 local function getMoneyValue(obj)
     local val = tonumber(obj.Name)
     if val then return val end
@@ -207,6 +183,7 @@ task.spawn(function()
     end
 end)
 
+-- Natural mouse interaction optimized for money drops
 local function interactWithMoneyNaturally(dropObj)
     if not dropObj or not dropObj.Parent then return end
 
@@ -215,18 +192,18 @@ local function interactWithMoneyNaturally(dropObj)
     if not cf or not camera then return end
 
     camera.CFrame = CFrame.new(camera.CFrame.Position, cf.Position)
-    task.wait(0.04)
+    task.wait(0.02)
 
     local screenPos, onScreen = camera:WorldToViewportPoint(cf.Position)
     if not onScreen or screenPos.Z <= 0 then return end
 
-    local x, y = screenPos.X - 10, screenPos.Y
+    local x, y = screenPos.X, screenPos.Y
 
     pcall(function()
         VirtualInputManager:SendMouseMoveEvent(x, y, workspace)
-        task.wait(0.04)
+        task.wait(0.02)
         VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, workspace, 0)
-        task.wait(0.04)
+        task.wait(0.02)
         VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, workspace, 0)
     end)
 end
@@ -257,10 +234,11 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-local function collectMoneyDropsByTweeningWithin20Studs()
+-- HIGHLY IMPROVED MONEY COLLECTOR (Fast, sorted by distance, continuous sweep)
+local function collectMoneyDropsByTweeningWithin30Studs()
     local startTime = tick()
     
-    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 6.0) do
+    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 7.0) do
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then break end
         local rootPart = char.HumanoidRootPart
@@ -271,48 +249,55 @@ local function collectMoneyDropsByTweeningWithin20Studs()
             IgnoredFolder = workspace:FindFirstChild("Ignored")
             DropFolder = IgnoredFolder and IgnoredFolder:FindFirstChild("Drop")
             if not DropFolder then
-                task.wait(0.3)
+                task.wait(0.2)
                 continue 
             end
         end
 
-        local foundAny = false
+        -- Gather all valid money drops and sort by closest distance to player
+        local availableDrops = {}
         for _, obj in ipairs(DropFolder:GetChildren()) do
             if obj.Name == "MoneyDrop" and obj.Parent then
                 local cf = getObjectCFrame(obj)
                 if cf then
-                    local targetPos = cf.Position + Vector3.new(0, 1.5, 0)
+                    local targetPos = cf.Position + Vector3.new(0, 1.2, 0)
                     local dist = (targetPos - rootPart.Position).Magnitude
-                    if dist <= 20 then
-                        foundAny = true
-                        unequipActiveTool()
-                        
-                        local lookVec = rootPart.CFrame.LookVector
-                        local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
-                        if flatLook.Magnitude < 0.01 then flatLook = Vector3.new(0, 0, -1) end
-                        local targetCf = CFrame.new(targetPos, targetPos + flatLook)
-                        
-                        local distance = (rootPart.Position - targetPos).Magnitude
-                        local tweenDuration = math.clamp(distance / 50, 0.4, 1.2)
-                        
-                        local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
-                        local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCf})
-                        tween:Play()
-                        tween.Completed:Wait()
-                        
-                        addTrackedMoney(getMoneyValue(obj))
-                        interactWithMoneyNaturally(obj)
-                        
-                        task.wait(0.5)
+                    if dist <= 35 then
+                        table.insert(availableDrops, {obj = obj, pos = targetPos, dist = dist})
                     end
                 end
             end
         end
 
-        if not foundAny then
-            task.wait(0.15)
+        table.sort(availableDrops, function(a, b)
+            return a.dist < b.dist
+        end)
+
+        if #availableDrops == 0 then
+            task.wait(0.1)
         else
-            task.wait(0.05)
+            for _, dropData in ipairs(availableDrops) do
+                if not dropData.obj.Parent then continue end
+                unequipActiveTool()
+
+                local targetPos = dropData.pos
+                local lookVec = rootPart.CFrame.LookVector
+                local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
+                if flatLook.Magnitude < 0.01 then flatLook = Vector3.new(0, 0, -1) end
+                local targetCf = CFrame.new(targetPos, targetPos + flatLook)
+                
+                local distance = (rootPart.Position - targetPos).Magnitude
+                local tweenDuration = math.clamp(distance / 60, 0.2, 0.6)
+                
+                local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+                local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCf})
+                tween:Play()
+                tween.Completed:Wait()
+                
+                addTrackedMoney(getMoneyValue(dropData.obj))
+                interactWithMoneyNaturally(dropData.obj)
+                task.wait(0.15)
+            end
         end
     end
 end
@@ -587,7 +572,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---             CASHIER FARM LOGIC (FIXED & OPTIMIZED)              --
+--       CASHIER FARM LOGIC (RELIABLE HITBOX & TARGET LOCK)        --
 --[================================================================]--
 
 task.spawn(function()
@@ -627,20 +612,19 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Position character directly right next to the exact damage part
+                        -- Position character securely right in front of the cashier part
                         local partPos = damagePart.Position
-                        local standPos = partPos + (damagePart.CFrame.LookVector * 1.5)
+                        local standPos = partPos + (damagePart.CFrame.LookVector * 1.2)
                         local targetCashierCf = CFrame.new(standPos, partPos)
 
                         local distance = (rootPart.Position - standPos).Magnitude
-                        local tweenDuration = math.clamp(distance / 700, 0.05, 0.25)
+                        local tweenDuration = math.clamp(distance / 700, 0.05, 0.2)
                         
                         local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
                         local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCashierCf})
                         tween:Play()
                         tween.Completed:Wait()
 
-                        -- Lock anchor in place tightly right next to the damage part
                         rootPart.Anchored = true
                         lastTeleportTick = tick()
                         task.wait(0.1)
@@ -650,7 +634,7 @@ task.spawn(function()
 
                         local startTime = tick()
                         
-                        -- LOCKED LOOP: Stays until cashier is completely destroyed (Health <= 0) or times out
+                        -- RELIABLE ATTACK LOOP: Continuously re-targets camera/CFrame and fires hit events accurately
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do
                             if tick() - startTime > 15 then break end 
 
@@ -659,12 +643,15 @@ task.spawn(function()
                                 break
                             end
 
+                            -- Force absolute alignment towards damage part
                             rootPart.CFrame = CFrame.new(rootPart.Position, damagePart.Position)
+                            workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, damagePart.Position)
+                            
                             equipCombatTool()
 
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(1.2) 
+                                task.wait(1.1) 
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
@@ -676,8 +663,9 @@ task.spawn(function()
 
                         rootPart.Anchored = false
                         
+                        -- IMMEDIATELY COLLECT MONEY DROPS SPAWNED FROM THIS CASHIER
                         if not isPlayerDownedOrDead() then
-                            collectMoneyDropsByTweeningWithin20Studs()
+                            collectMoneyDropsByTweeningWithin30Studs()
                         end
                     end
                 end
