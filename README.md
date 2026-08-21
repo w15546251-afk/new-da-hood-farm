@@ -88,13 +88,15 @@ local function equipCombatTool()
     return false
 end
 
--- Function to find the exact damageable part of a cashier model/object
+-- Function to find the exact "Open" part of a cashier model as specified
 local function getCashierDamagePart(cashier)
     if not cashier then return nil end
-    if cashier:IsA("BasePart") then
-        return cashier
-    elseif cashier:IsA("Model") then
-        -- Look for standard hit parts
+    if cashier:IsA("Model") then
+        local openPart = cashier:FindFirstChild("Open")
+        if openPart and openPart:IsA("BasePart") then
+            return openPart
+        end
+        -- Fallback if Open part isn't loaded yet
         local hitPart = cashier:FindFirstChild("HumanoidRootPart") or cashier:FindFirstChild("Head") or cashier:FindFirstChild("Hitbox") or cashier.PrimaryPart
         if not hitPart then
             for _, descendant in ipairs(cashier:GetDescendants()) do
@@ -105,6 +107,8 @@ local function getCashierDamagePart(cashier)
             end
         end
         return hitPart
+    elseif cashier:IsA("BasePart") then
+        return cashier
     end
     return nil
 end
@@ -187,12 +191,10 @@ local function collectMoneyViaClickDetector(dropObj)
     pcall(function()
         local clickDetector = dropObj:FindFirstChildOfClass("ClickDetector") or dropObj:FindFirstChild("ClickDetector")
         if clickDetector then
-            -- Fire the click detector directly as requested
             if fireclickdetector then
                 fireclickdetector(clickDetector)
                 success = true
             else
-                -- Fallback executor support
                 clickDetector:InputHoldBegin()
                 task.wait(0.05)
                 clickDetector:InputHoldEnd()
@@ -208,7 +210,7 @@ local function collectMoneyViaClickDetector(dropObj)
     return false
 end
 
--- Strict Upright Stabilizer
+-- Strict Upright Stabilizer with Continuous Face Lock during Cashier Farm
 RunService.Heartbeat:Connect(function()
     if isAutoFarmRunning or isCashierFarmRunning then
         local char = LocalPlayer.Character
@@ -245,7 +247,6 @@ local function collectMoneyDropsByTweeningWithin30Studs()
         
         rootPart.Anchored = false
 
-        -- Re-verify folder path workspace.Ignored.Drop
         if not DropFolder then 
             IgnoredFolder = workspace:FindFirstChild("Ignored")
             DropFolder = IgnoredFolder and IgnoredFolder:FindFirstChild("Drop")
@@ -568,7 +569,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---       CASHIER FARM LOGIC (PRECISION DAMAGE TARGETING)          --
+--       CASHIER FARM LOGIC (TARGETING 'Open' PART & FACE LOCK)   --
 --[================================================================]--
 
 task.spawn(function()
@@ -608,9 +609,9 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Position directly face-to-face with the damage part
+                        -- Position directly to the side/front of the "Open" part smoothly
                         local partPos = damagePart.Position
-                        local standPos = partPos + (damagePart.CFrame.LookVector * 1.0)
+                        local standPos = partPos + (damagePart.CFrame.RightVector * 1.2) + (damagePart.CFrame.LookVector * 0.5)
                         local targetCashierCf = CFrame.new(standPos, partPos)
 
                         local distance = (rootPart.Position - standPos).Magnitude
@@ -630,7 +631,7 @@ task.spawn(function()
 
                         local startTime = tick()
                         
-                        -- SECURE DAMAGE LOOP: Focuses camera directly on damage part and inputs attacks reliably
+                        -- RELIABLE CHARGE ATTACK & LOCKED FACING LOOP
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do
                             if tick() - startTime > 15 then break end 
 
@@ -639,19 +640,20 @@ task.spawn(function()
                                 break
                             end
 
-                            -- Continuously snap alignment and camera directly onto the exact damage target
-                            rootPart.CFrame = CFrame.new(rootPart.Position, damagePart.Position)
+                            -- Force absolute facing lock towards the 'Open' part at all times
+                            rootPart.CFrame = CFrame.new(rootPart.Position, Vector3.new(damagePart.Position.X, rootPart.Position.Y, damagePart.Position.Z))
                             workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, damagePart.Position)
                             
                             equipCombatTool()
 
+                            -- Reliable Charge Attack Input Sequence: Hold down long enough to charge, then release
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(0.8) 
+                                task.wait(1.0) -- Hold duration for charge hit registration
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
-                            task.wait(0.05)
+                            task.wait(0.1)
                         end
 
                         unequipActiveTool()
@@ -659,7 +661,7 @@ task.spawn(function()
 
                         rootPart.Anchored = false
                         
-                        -- COLLECT MONEY IMMEDIATELY USING CLICK DETECTOR PATH
+                        -- COLLECT MONEY IMMEDIATELY AFTER BREAKING CASHIER
                         if not isPlayerDownedOrDead() then
                             collectMoneyDropsByTweeningWithin30Studs()
                         end
