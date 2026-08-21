@@ -11,15 +11,17 @@ local LocalPlayer = Players.LocalPlayer
 -- Configuration
 local Config = {
     Delay = 0.5,                                        
-    MaxAttempts = 2,                                    
-    TeleportWait = 2.0,                                 
+    MaxAttempts = 2,                                        
+    TeleportWait = 2.0,                                         
     NotificationDuration = 3,
+    CollectCooldown = 0.5, -- Throttling delay for click detector firing
 }
 
 -- State Variables
 local isAutoFarmRunning = false
 local isCashierFarmRunning = false
 local lastTeleportTick = 0
+local lastCollectTick = 0
 
 -- Stats Tracking Variables
 local totalMoneyEarned = 0
@@ -68,21 +70,23 @@ end
 
 local function equipCombatTool()
     local char = LocalPlayer.Character
-    if not char then return end
+    if not char then return false end
     local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
+    if not humanoid then return false end
+
+    -- Check if already equipped
+    if char:FindFirstChild("Combat") then
+        return true
+    end
 
     local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
     if backpack then
         local combatTool = backpack:FindFirstChild("Combat")
         if combatTool then
             humanoid:EquipTool(combatTool)
+            task.wait(0.1) -- Allow tool equip to process
             return true
         end
-    end
-
-    if char:FindFirstChild("Combat") then
-        return true
     end
 
     return false
@@ -96,7 +100,6 @@ local function getCashierDamagePart(cashier)
         if openPart and openPart:IsA("BasePart") then
             return openPart
         end
-        -- Fallback if Open part isn't loaded yet
         local hitPart = cashier:FindFirstChild("HumanoidRootPart") or cashier:FindFirstChild("Head") or cashier:FindFirstChild("Hitbox") or cashier.PrimaryPart
         if not hitPart then
             for _, descendant in ipairs(cashier:GetDescendants()) do
@@ -183,9 +186,14 @@ task.spawn(function()
     end
 end)
 
--- Direct ClickDetector Fire for Money Drops using workspace.Ignored.Drop path
+-- Direct ClickDetector Fire for Money Drops using workspace.Ignored.Drop path (Throttled)
 local function collectMoneyViaClickDetector(dropObj)
     if not dropObj or not dropObj.Parent then return false end
+
+    -- Enforce 0.5 second cooldown check
+    if tick() - lastCollectTick < Config.CollectCooldown then
+        return false
+    end
 
     local success = false
     pcall(function()
@@ -204,6 +212,7 @@ local function collectMoneyViaClickDetector(dropObj)
     end)
 
     if success then
+        lastCollectTick = tick()
         addTrackedMoney(getMoneyValue(dropObj))
         return true
     end
@@ -293,7 +302,7 @@ local function collectMoneyDropsByTweeningWithin30Studs()
                 tween.Completed:Wait()
                 
                 collectMoneyViaClickDetector(dropData.obj)
-                task.wait(0.05)
+                task.wait(Config.CollectCooldown) -- Honor the throttle delay
             end
         end
     end
@@ -569,7 +578,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---       CASHIER FARM LOGIC (TARGETING 'Open' PART & FACE LOCK)   --
+--      CASHIER FARM LOGIC (TARGETING 'Open' PART & FACE LOCK)   --
 --[================================================================]--
 
 task.spawn(function()
@@ -609,7 +618,6 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Position directly to the side/front of the "Open" part smoothly
                         local partPos = damagePart.Position
                         local standPos = partPos + (damagePart.CFrame.RightVector * 1.2) + (damagePart.CFrame.LookVector * 0.5)
                         local targetCashierCf = CFrame.new(standPos, partPos)
@@ -644,16 +652,17 @@ task.spawn(function()
                             rootPart.CFrame = CFrame.new(rootPart.Position, Vector3.new(damagePart.Position.X, rootPart.Position.Y, damagePart.Position.Z))
                             workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, damagePart.Position)
                             
+                            -- Ensure tool remains equipped every cycle
                             equipCombatTool()
 
-                            -- Reliable Charge Attack Input Sequence: Hold down long enough to charge, then release
+                            -- Reliable Charge Attack: Check if tool is active and send stable press/hold/release events
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(1.0) -- Hold duration for charge hit registration
+                                task.wait(0.8) -- Stable charge hold duration
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
-                            task.wait(0.1)
+                            task.wait(0.2) -- Brief cooldown between charges to let damage register
                         end
 
                         unequipActiveTool()
