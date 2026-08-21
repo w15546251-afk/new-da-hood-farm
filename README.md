@@ -10,9 +10,9 @@ local LocalPlayer = Players.LocalPlayer
 
 -- Configuration 
 local Config = { 
-    Delay = 0.5,                                                    
-    MaxAttempts = 2,                                                    
-    TeleportWait = 1.0,                                             
+    Delay = 0.5,                                                
+    MaxAttempts = 2,                                            
+    TeleportWait = 1.0,                                         
     NotificationDuration = 3, 
     CollectCooldown = 0.2,  
     CashierAttackDelay = 0.8, -- Controls cashier attack speed 
@@ -36,7 +36,7 @@ local DropFolder = IgnoredFolder and IgnoredFolder:WaitForChild("Drop", 5)
 local CashiersFolder = WorkspaceFolder:WaitForChild("Cashiers", 5) 
 
 --[================================================================]-- 
---                    UTILITY FUNCTIONS                             -- 
+--                     UTILITY FUNCTIONS                           -- 
 --[================================================================]-- 
 
 local function sendNotification(title, text) 
@@ -60,19 +60,39 @@ local function setupAntiAFK()
 end 
 setupAntiAFK() 
 
--- Auto-Jump if Seated (Prevents getting stuck in chairs/seats) 
+-- Robust Anti-Sit Fix (Destroys SeatWelds and forces jump/teleport up)
+local function handleAntiSit()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    
+    if humanoid and humanoid:GetState() == Enum.HumanoidStateType.Seated then
+        humanoid.Jump = true
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        
+        -- Destroy any active seat welds tying the player to a chair
+        for _, obj in ipairs(char:GetDescendants()) do
+            if obj:IsA("Weld") or obj:IsA("WeldConstraint") then
+                if obj.Part0 and (obj.Part0.Name == "HumanoidRootPart" or obj.Part0.Parent == workspace) then
+                    obj:Destroy()
+                elseif obj.Part1 and (obj.Part1.Name == "HumanoidRootPart" or obj.Part1.Parent == workspace) then
+                    obj:Destroy()
+                end
+            end
+        end
+        
+        if rootPart then
+            rootPart.CFrame = rootPart.CFrame + Vector3.new(0, 3, 0)
+        end
+    end
+end
+
+-- Auto-Jump/Anti-Sit background monitor 
 task.spawn(function() 
     while true do 
-        task.wait(0.5) 
-        local char = LocalPlayer.Character 
-        if char then 
-            local humanoid = char:FindFirstChildOfClass("Humanoid") 
-            if humanoid then 
-                if humanoid:GetState() == Enum.HumanoidStateType.Seated then 
-                    humanoid.Jump = true 
-                end 
-            end 
-        end 
+        task.wait(0.2) 
+        handleAntiSit()
     end 
 end) 
 
@@ -573,14 +593,6 @@ task.spawn(function()
         if isCashierFarmRunning then 
             local char = LocalPlayer.Character 
 
-            -- Anti-Sit Feature Check inside Cashier Farm Loop
-            if char then
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                if hum and hum:GetState() == Enum.HumanoidStateType.Seated then
-                    hum.Jump = true
-                end
-            end
-
             local function isPlayerDownedOrDead() 
                 local c = LocalPlayer.Character 
                 if not c then return true end 
@@ -659,12 +671,6 @@ task.spawn(function()
                          
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do 
                             if tick() - startTime > 30 then break end  
-
-                            -- Anti-Sit Feature Check inside Attack Loop
-                            local currentHum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                            if currentHum and currentHum:GetState() == Enum.HumanoidStateType.Seated then
-                                currentHum.Jump = true
-                            end
 
                             local humanoid = cashier:FindFirstChildOfClass("Humanoid") 
                             if humanoid and humanoid.Health <= 0 then 
