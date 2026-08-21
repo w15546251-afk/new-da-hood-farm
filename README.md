@@ -10,11 +10,11 @@ local LocalPlayer = Players.LocalPlayer
 
 -- Configuration
 local Config = {
-    Delay = 0.5,                                        
+    Delay = 0.2,                                        
     MaxAttempts = 2,                                        
-    TeleportWait = 2.0,                                         
+    TeleportWait = 0.5, -- Speeded up transition wait between cashiers                                        
     NotificationDuration = 3,
-    CollectCooldown = 0.5,
+    CollectCooldown = 0.2, -- Faster money drop pickup cooldown
 }
 
 -- State Variables
@@ -83,7 +83,7 @@ local function equipCombatTool()
         local combatTool = backpack:FindFirstChild("Combat")
         if combatTool then
             humanoid:EquipTool(combatTool)
-            task.wait(0.1)
+            task.wait(0.05)
             return true
         end
     end
@@ -201,7 +201,7 @@ local function collectMoneyViaClickDetector(dropObj)
                 success = true
             else
                 clickDetector:InputHoldBegin()
-                task.wait(0.05)
+                task.wait(0.02)
                 clickDetector:InputHoldEnd()
                 success = true
             end
@@ -216,11 +216,11 @@ local function collectMoneyViaClickDetector(dropObj)
     return false
 end
 
--- MONEY COLLECTOR SWEEP
+-- FASTER MONEY COLLECTOR SWEEP
 local function collectMoneyDropsByTweeningWithin30Studs()
     local startTime = tick()
     
-    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 6.0) do
+    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 2.5) do
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then break end
         local rootPart = char.HumanoidRootPart
@@ -231,7 +231,7 @@ local function collectMoneyDropsByTweeningWithin30Studs()
             IgnoredFolder = workspace:FindFirstChild("Ignored")
             DropFolder = IgnoredFolder and IgnoredFolder:FindFirstChild("Drop")
             if not DropFolder then
-                task.wait(0.2)
+                task.wait(0.1)
                 continue 
             end
         end
@@ -255,7 +255,7 @@ local function collectMoneyDropsByTweeningWithin30Studs()
         end)
 
         if #availableDrops == 0 then
-            task.wait(0.1)
+            break
         else
             for _, dropData in ipairs(availableDrops) do
                 if not dropData.obj.Parent then continue end
@@ -265,7 +265,7 @@ local function collectMoneyDropsByTweeningWithin30Studs()
                 local targetCf = CFrame.new(targetPos, targetPos + Vector3.new(0, 0, -1))
                 
                 local distance = (rootPart.Position - targetPos).Magnitude
-                local tweenDuration = math.clamp(distance / 60, 0.1, 0.4)
+                local tweenDuration = math.clamp(distance / 80, 0.05, 0.2)
                 
                 local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
                 local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCf})
@@ -273,7 +273,7 @@ local function collectMoneyDropsByTweeningWithin30Studs()
                 tween.Completed:Wait()
                 
                 collectMoneyViaClickDetector(dropData.obj)
-                task.wait(Config.CollectCooldown)
+                task.wait(0.05)
             end
         end
     end
@@ -292,8 +292,8 @@ task.spawn(function()
                         humanoid.Health = 0
                     end)
                     local oldChar = char
-                    repeat task.wait(0.5) until LocalPlayer.Character ~= oldChar and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    task.wait(1)
+                    repeat task.wait(0.3) until LocalPlayer.Character ~= oldChar and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    task.wait(0.5)
                 end
             end
         end
@@ -549,7 +549,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---      CASHIER FARM LOGIC (ANCHORED INSIDE WITH FULL CHARGE)     --
+--      CASHIER FARM LOGIC (FAST TRANSITION & FULL CHARGE)        --
 --[================================================================]--
 
 task.spawn(function()
@@ -594,7 +594,7 @@ task.spawn(function()
                         local targetCashierCf = CFrame.new(partPos, partPos + damagePart.CFrame.LookVector)
 
                         local distance = (rootPart.Position - partPos).Magnitude
-                        local tweenDuration = math.clamp(distance / 700, 0.05, 0.15)
+                        local tweenDuration = math.clamp(distance / 900, 0.03, 0.1)
                         
                         local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
                         local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCashierCf})
@@ -603,46 +603,46 @@ task.spawn(function()
 
                         rootPart.Anchored = true
                         lastTeleportTick = tick()
-                        task.wait(0.1)
+                        task.wait(0.05)
 
                         equipCombatTool()
-                        task.wait(0.1)
+                        task.wait(0.05)
 
                         local startTime = tick()
                         
                         -- LOCKED INSIDE UNTIL COMPLETELY BROKEN WITH TRUE FULL CHARGE ATTACK
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do
-                            if tick() - startTime > 30 then break end 
+                            if tick() - startTime > 25 then break end 
 
                             local humanoid = cashier:FindFirstChild("Humanoid")
                             if humanoid and humanoid.Health <= 0 then
                                 break
                             end
 
-                            -- Keep character locked inside the cashier part
                             rootPart.CFrame = targetCashierCf
-                            
                             equipCombatTool()
 
                             -- Reliable Full Heavy Charge Attack (1.5 seconds hold)
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(1.5) -- True full charge duration
+                                task.wait(1.5)
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
-                            task.wait(0.3) -- Cooldown between full swings
+                            task.wait(0.2)
                         end
 
                         unequipActiveTool()
-                        task.wait(0.1)
+                        task.wait(0.05)
 
                         rootPart.Anchored = false
                         
-                        -- COLLECT MONEY IMMEDIATELY AFTER BREAKING CASHIER
+                        -- INSTANT COLLECTION & IMMEDIATE TRANSITION
                         if not isPlayerDownedOrDead() then
                             collectMoneyDropsByTweeningWithin30Studs()
                         end
+                        
+                        task.wait(0.05) -- Instant jump to the next cashier with zero downtime
                     end
                 end
             else
@@ -651,16 +651,16 @@ task.spawn(function()
                 end
                 
                 repeat
-                    task.wait(0.5)
+                    task.wait(0.3)
                 until not isPlayerDownedOrDead() and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 
-                task.wait(0.5)
+                task.wait(0.2)
             end
         else
             if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 LocalPlayer.Character.HumanoidRootPart.Anchored = false
             end
-            task.wait(0.5)
+            task.wait(0.3)
         end
     end
 end)
