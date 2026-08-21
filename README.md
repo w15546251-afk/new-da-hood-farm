@@ -11,11 +11,11 @@ local LocalPlayer = Players.LocalPlayer
 
 -- Configuration
 local Config = {
-    Delay = 0.5,                        -- Optimized transition delay
-    MaxAttempts = 2,                    -- Attempts before teleporting to the money drop
-    TeleportWait = 3.0,                 -- Balanced interval between teleports
-    TeleportDistanceThreshold = 5,      -- Only teleport if the drop is 5 studs away or more
-    CashierMoneyDropsToCollect = 4,     -- Reduced count per cashier for faster rotation & less lag
+    Delay = 0.5,                        
+    MaxAttempts = 2,                    
+    TeleportWait = 3.0,                 
+    TeleportDistanceThreshold = 5,      
+    CashierMoneyDropsToCollect = 4,     
     NotificationDuration = 3,
     RemovalRadius = 5                   
 }
@@ -31,7 +31,7 @@ local totalMoneyEarned = 0
 local activeFarmingTime = 0
 local lastTickTime = tick()
 
--- Cached Workspace Folders for Performance (Reduces repetitive string lookup overhead)
+-- Cached Workspace Folders for Performance
 local WorkspaceFolder = workspace
 local IgnoredFolder = WorkspaceFolder:WaitForChild("Ignored", 5)
 local DropFolder = IgnoredFolder and IgnoredFolder:WaitForChild("Drop", 5)
@@ -176,7 +176,7 @@ end
 
 task.spawn(function()
     while true do
-        task.wait(1.0) -- Reduced frequency to save CPU cycles
+        task.wait(1.0)
         local currentCash = getPlayerLeaderstatCash()
         if currentCash then
             if lastKnownLeaderstatCash then
@@ -214,7 +214,6 @@ local function interactWithMoneyNaturally(dropObj)
     end)
 end
 
--- Optimized collection loop using cached folders & minimal yields
 local function collectMoneyDropsByTeleportingWithin20Studs()
     local startTime = tick()
     
@@ -539,7 +538,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---                    CASHIER FARM LOGIC (LAG FIX)                  --
+--               CASHIER FARM LOGIC (FIXED CHARGE ATTACK)           --
 --[================================================================]--
 
 task.spawn(function()
@@ -582,7 +581,7 @@ task.spawn(function()
                         
                         rootPart.CFrame = cashierCf + Vector3.new(0, 3, 0)
                         lastTeleportTick = tick()
-                        task.wait(0.2) -- Optimized down from 0.4s
+                        task.wait(0.2)
 
                         local lockedPositionCFrame = cashierCf
                         rootPart.CFrame = lockedPositionCFrame
@@ -593,7 +592,7 @@ task.spawn(function()
 
                         local startTime = tick()
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do
-                            if tick() - startTime > 10 then break end -- Reduced max execution timeout per cashier to avoid loop lock
+                            if tick() - startTime > 10 then break end 
                             if not isValidCashier(cashier) then break end
 
                             local currentDist = (rootPart.Position - lockedPositionCFrame.Position).Magnitude
@@ -606,14 +605,14 @@ task.spawn(function()
 
                             equipCombatTool()
 
-                            -- Optimized charge punch ticks
+                            -- Corrected Charge Attack Sequence
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(1.1) -- Shorter optimized delay for high punch accuracy without hanging
+                                task.wait(1.3) -- Restored 1.3s charge window for punch registration
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
-                            task.wait(0.15)
+                            task.wait(0.2)
                         end
 
                         unequipActiveTool()
