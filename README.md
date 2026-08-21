@@ -578,7 +578,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---      CASHIER FARM LOGIC (TARGETING 'Open' PART & FACE LOCK)   --
+--      CASHIER FARM LOGIC (TARGETING BACK OF 'Open' PART)       --
 --[================================================================]--
 
 task.spawn(function()
@@ -618,9 +618,9 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Position directly in front of the "Open" part looking right at it
+                        -- Position directly behind the "Open" part looking forward through it
                         local partPos = damagePart.Position
-                        local standPos = partPos + (damagePart.CFrame.LookVector * 1.5)
+                        local standPos = partPos - (damagePart.CFrame.LookVector * 1.5)
                         local targetCashierCf = CFrame.new(standPos, partPos)
 
                         local distance = (rootPart.Position - standPos).Magnitude
@@ -640,29 +640,29 @@ task.spawn(function()
 
                         local startTime = tick()
                         
-                        -- STABLE CHARGE ATTACK & LOCKED FACING LOOP
+                        -- LOCKED BEHIND CASHIER UNTIL COMPLETELY BROKEN LOOP
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do
-                            if tick() - startTime > 15 then break end 
+                            if tick() - startTime > 30 then break end 
 
                             local humanoid = cashier:FindFirstChild("Humanoid")
                             if humanoid and humanoid.Health <= 0 then
                                 break
                             end
 
-                            -- Force absolute facing lock directly into the front of the cashier part
-                            rootPart.CFrame = CFrame.new(rootPart.Position, Vector3.new(damagePart.Position.X, rootPart.Position.Y, damagePart.Position.Z))
-                            workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, damagePart.Position)
+                            -- Force absolute locked position and facing into the back of the cashier part
+                            rootPart.CFrame = CFrame.new(standPos, partPos)
+                            workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, partPos)
                             
                             equipCombatTool()
 
-                            -- Reliable Charge Attack Sequence with proper pacing to prevent spam clicking
+                            -- Reliable Charge Attack Sequence with 1.4 second hold duration
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(1.0) -- Hold down long enough for the charge attack to build power
+                                task.wait(1.4) -- Held down for precisely 1.4 seconds to charge heavy attack
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
-                            task.wait(0.5) -- Pacing delay between attacks so the game can process hits accurately
+                            task.wait(0.4) -- Cooldown between swings
                         end
 
                         unequipActiveTool()
