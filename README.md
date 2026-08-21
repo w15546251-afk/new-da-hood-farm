@@ -15,7 +15,7 @@ local Config = {
     TeleportWait = 1.0,                                         
     NotificationDuration = 3,
     CollectCooldown = 0.2, 
-    CashierAttackDelay = 0.8, -- Controls cashier attack speed
+    CashierAttackDelay = 0.5, -- Optimized for consistent hitting
 }
 
 -- State Variables
@@ -611,7 +611,7 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Offset position 2 studs away using the look vector (or back vector)
+                        -- Offset position 2 studs away using the look vector
                         local partPos = damagePart.Position
                         local offsetPos = partPos - (damagePart.CFrame.LookVector * 2)
                         local targetCashierCf = CFrame.new(offsetPos, partPos)
@@ -624,7 +624,8 @@ task.spawn(function()
                         tween:Play()
                         tween.Completed:Wait()
 
-                        rootPart.Anchored = true
+                        -- Unanchor right before and during attacking to fix registration bugs
+                        rootPart.Anchored = false
                         lastTeleportTick = tick()
                         task.wait(0.1)
 
@@ -641,12 +642,15 @@ task.spawn(function()
                                 break
                             end
 
+                            -- Keep unanchored so hit registration functions correctly with punch animations
                             rootPart.CFrame = targetCashierCf
+                            rootPart.Anchored = false 
                             equipCombatTool()
 
+                            -- Send click input to attack
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(1.4)
+                                task.wait(0.05)
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
