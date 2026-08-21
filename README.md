@@ -10,9 +10,9 @@ local LocalPlayer = Players.LocalPlayer
 
 -- Configuration
 local Config = {
-    Delay = 0.2,                                        
+    Delay = 0.5,                                        
     MaxAttempts = 2,                                        
-    TeleportWait = 0.5, -- Speeded up transition wait between cashiers                                        
+    TeleportWait = 1.0,                                         
     NotificationDuration = 3,
     CollectCooldown = 0.2, -- Faster money drop pickup cooldown
 }
@@ -83,7 +83,7 @@ local function equipCombatTool()
         local combatTool = backpack:FindFirstChild("Combat")
         if combatTool then
             humanoid:EquipTool(combatTool)
-            task.wait(0.05)
+            task.wait(0.1)
             return true
         end
     end
@@ -184,7 +184,6 @@ task.spawn(function()
     end
 end)
 
--- Direct ClickDetector Fire for Money Drops
 local function collectMoneyViaClickDetector(dropObj)
     if not dropObj or not dropObj.Parent then return false end
 
@@ -216,11 +215,11 @@ local function collectMoneyViaClickDetector(dropObj)
     return false
 end
 
--- FASTER MONEY COLLECTOR SWEEP
+-- FAST MONEY COLLECTOR SWEEP (Shortened timeout so it moves on quickly)
 local function collectMoneyDropsByTweeningWithin30Studs()
     local startTime = tick()
     
-    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 2.5) do
+    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 1.5) do
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then break end
         local rootPart = char.HumanoidRootPart
@@ -265,7 +264,7 @@ local function collectMoneyDropsByTweeningWithin30Studs()
                 local targetCf = CFrame.new(targetPos, targetPos + Vector3.new(0, 0, -1))
                 
                 local distance = (rootPart.Position - targetPos).Magnitude
-                local tweenDuration = math.clamp(distance / 80, 0.05, 0.2)
+                local tweenDuration = math.clamp(distance / 70, 0.05, 0.25)
                 
                 local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
                 local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCf})
@@ -292,8 +291,8 @@ task.spawn(function()
                         humanoid.Health = 0
                     end)
                     local oldChar = char
-                    repeat task.wait(0.3) until LocalPlayer.Character ~= oldChar and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    task.wait(0.5)
+                    repeat task.wait(0.5) until LocalPlayer.Character ~= oldChar and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    task.wait(1)
                 end
             end
         end
@@ -549,7 +548,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---      CASHIER FARM LOGIC (FAST TRANSITION & FULL CHARGE)        --
+--      CASHIER FARM LOGIC (ORIGINAL ATTACKING & FAST COLLECTION) --
 --[================================================================]--
 
 task.spawn(function()
@@ -589,12 +588,12 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Position directly anchored inside the core of the cashier part
+                        -- Position anchored inside core of cashier
                         local partPos = damagePart.Position
                         local targetCashierCf = CFrame.new(partPos, partPos + damagePart.CFrame.LookVector)
 
                         local distance = (rootPart.Position - partPos).Magnitude
-                        local tweenDuration = math.clamp(distance / 900, 0.03, 0.1)
+                        local tweenDuration = math.clamp(distance / 700, 0.05, 0.15)
                         
                         local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
                         local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCashierCf})
@@ -603,16 +602,16 @@ task.spawn(function()
 
                         rootPart.Anchored = true
                         lastTeleportTick = tick()
-                        task.wait(0.05)
+                        task.wait(0.1)
 
                         equipCombatTool()
-                        task.wait(0.05)
+                        task.wait(0.1)
 
                         local startTime = tick()
                         
-                        -- LOCKED INSIDE UNTIL COMPLETELY BROKEN WITH TRUE FULL CHARGE ATTACK
+                        -- LOCKED INSIDE UNTIL BROKEN (ORIGINAL CHARGED ATTACK METHOD)
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do
-                            if tick() - startTime > 25 then break end 
+                            if tick() - startTime > 30 then break end 
 
                             local humanoid = cashier:FindFirstChild("Humanoid")
                             if humanoid and humanoid.Health <= 0 then
@@ -622,27 +621,25 @@ task.spawn(function()
                             rootPart.CFrame = targetCashierCf
                             equipCombatTool()
 
-                            -- Reliable Full Heavy Charge Attack (1.5 seconds hold)
+                            -- Original stable charge attack method
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(1.5)
+                                task.wait(1.4)
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
-                            task.wait(0.2)
+                            task.wait(0.3)
                         end
 
                         unequipActiveTool()
-                        task.wait(0.05)
+                        task.wait(0.1)
 
                         rootPart.Anchored = false
                         
-                        -- INSTANT COLLECTION & IMMEDIATE TRANSITION
+                        -- QUICK MONEY COLLECTION & FAST SWITCH TO NEXT CASHIER
                         if not isPlayerDownedOrDead() then
                             collectMoneyDropsByTweeningWithin30Studs()
                         end
-                        
-                        task.wait(0.05) -- Instant jump to the next cashier with zero downtime
                     end
                 end
             else
@@ -651,16 +648,16 @@ task.spawn(function()
                 end
                 
                 repeat
-                    task.wait(0.3)
+                    task.wait(0.5)
                 until not isPlayerDownedOrDead() and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 
-                task.wait(0.2)
+                task.wait(0.5)
             end
         else
             if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 LocalPlayer.Character.HumanoidRootPart.Anchored = false
             end
-            task.wait(0.3)
+            task.wait(0.5)
         end
     end
 end)
