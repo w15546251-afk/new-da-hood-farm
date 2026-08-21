@@ -14,7 +14,7 @@ local Config = {
     MaxAttempts = 2,                                        
     TeleportWait = 1.0,                                         
     NotificationDuration = 3,
-    CollectCooldown = 0.2, -- Money drop pickup cooldown
+    CollectCooldown = 0.2, 
 }
 
 -- State Variables
@@ -215,11 +215,11 @@ local function collectMoneyViaClickDetector(dropObj)
     return false
 end
 
--- MONEY COLLECTOR SWEEP (Slower tween speed: divisor changed from 70 to 35)
-local function collectMoneyDropsByTweeningWithin30Studs()
+-- THOROUGH 25-STUD MONEY COLLECTION SWEEP (Ensures all drops are completely picked up)
+local function collectAllMoneyDropsWithin25Studs()
     local startTime = tick()
     
-    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 2.0) do
+    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 4.0) do
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then break end
         local rootPart = char.HumanoidRootPart
@@ -242,7 +242,7 @@ local function collectMoneyDropsByTweeningWithin30Studs()
                 if cf then
                     local targetPos = cf.Position + Vector3.new(0, 1.0, 0)
                     local dist = (targetPos - rootPart.Position).Magnitude
-                    if dist <= 35 then
+                    if dist <= 25 then
                         table.insert(availableDrops, {obj = obj, pos = targetPos, dist = dist})
                     end
                 end
@@ -548,7 +548,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---       CASHIER FARM LOGIC (SLOWER TWEEN SPEEDS)                  --
+--       CASHIER FARM LOGIC (HP <= 200 FILTER & FULL 25-STUD SWEEP)--
 --[================================================================]--
 
 task.spawn(function()
@@ -580,6 +580,12 @@ task.spawn(function()
                     if not isCashierFarmRunning or isPlayerDownedOrDead() then break end
                     if not cashier or not cashier.Parent then continue end
 
+                    -- Check if cashier has Humanoid and Health is <= 200
+                    local cashierHumanoid = cashier:FindFirstChildOfClass("Humanoid")
+                    if cashierHumanoid and cashierHumanoid.Health > 200 then
+                        continue -- Skip this cashier if HP is above 200
+                    end
+
                     local damagePart = getCashierDamagePart(cashier)
                     if damagePart and damagePart:IsA("BasePart") then
                         rootPart.Anchored = false
@@ -592,7 +598,6 @@ task.spawn(function()
                         local targetCashierCf = CFrame.new(partPos, partPos + damagePart.CFrame.LookVector)
 
                         local distance = (rootPart.Position - partPos).Magnitude
-                        -- Slower cashier travel speed: divisor changed from 700 to 200
                         local tweenDuration = math.clamp(distance / 200, 0.2, 0.8)
                         
                         local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
@@ -612,7 +617,7 @@ task.spawn(function()
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do
                             if tick() - startTime > 30 then break end 
 
-                            local humanoid = cashier:FindFirstChild("Humanoid")
+                            local humanoid = cashier:FindFirstChildOfClass("Humanoid")
                             if humanoid and humanoid.Health <= 0 then
                                 break
                             end
@@ -634,8 +639,9 @@ task.spawn(function()
 
                         rootPart.Anchored = false
                         
+                        -- Thorough money collection sweep ensuring ALL drops in 25 studs are collected
                         if not isPlayerDownedOrDead() then
-                            collectMoneyDropsByTweeningWithin30Studs()
+                            collectAllMoneyDropsWithin25Studs()
                         end
                     end
                 end
