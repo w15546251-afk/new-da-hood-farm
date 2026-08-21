@@ -214,7 +214,8 @@ local function interactWithMoneyNaturally(dropObj)
     end)
 end
 
-local function collectMoneyDropsByTeleportingWithin20Studs()
+-- Tween-based money collection for Cashier Farm
+local function collectMoneyDropsByTweeningWithin20Studs()
     local startTime = tick()
     
     while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 3.0) do
@@ -238,17 +239,24 @@ local function collectMoneyDropsByTeleportingWithin20Studs()
             if obj.Name == "MoneyDrop" and obj.Parent then
                 local cf = getObjectCFrame(obj)
                 if cf then
-                    local dist = (cf.Position - rootPart.Position).Magnitude
+                    local targetCf = cf + Vector3.new(0, 1.5, 0)
+                    local dist = (targetCf.Position - rootPart.Position).Magnitude
                     if dist <= 20 then
                         foundAny = true
                         unequipActiveTool()
                         
-                        rootPart.CFrame = cf + Vector3.new(0, 1.5, 0)
-                        task.wait(0.08)
+                        -- Super-fast smooth tween to money drop
+                        local distance = (rootPart.Position - targetCf.Position).Magnitude
+                        local tweenDuration = math.clamp(distance / 600, 0.04, 0.2)
+                        
+                        local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+                        local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCf})
+                        tween:Play()
+                        tween.Completed:Wait()
                         
                         addTrackedMoney(getMoneyValue(obj))
                         interactWithMoneyNaturally(obj)
-                        task.wait(0.08)
+                        task.wait(0.05)
                     end
                 end
             end
@@ -538,7 +546,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---             CASHIER FARM LOGIC (SUPER FAST TWEEN)                --
+--          CASHIER FARM LOGIC (SUPER FAST TWEEN & ATTACK)          --
 --[================================================================]--
 
 task.spawn(function()
@@ -581,7 +589,7 @@ task.spawn(function()
                         
                         -- Super fast high-speed tween into the cashier position
                         local distance = (rootPart.Position - cashierCf.Position).Magnitude
-                        local tweenDuration = math.clamp(distance / 800, 0.05, 0.25) -- extremely fast glide
+                        local tweenDuration = math.clamp(distance / 700, 0.05, 0.25)
                         
                         local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
                         local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = cashierCf})
@@ -619,7 +627,7 @@ task.spawn(function()
                         rootPart.Anchored = false
                         
                         if not isPlayerDownedOrDead() then
-                            collectMoneyDropsByTeleportingWithin20Studs()
+                            collectMoneyDropsByTweeningWithin20Studs()
                         end
                     end
                 end
