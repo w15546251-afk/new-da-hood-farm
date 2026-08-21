@@ -538,7 +538,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---             CASHIER FARM LOGIC (HARD ANCHORED)                   --
+--             CASHIER FARM LOGIC (STABLE ANCHOR 1.4s)              --
 --[================================================================]--
 
 task.spawn(function()
@@ -579,12 +579,12 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Initial teleport right inside the cashier
+                        -- Set exact position and anchor once
                         rootPart.CFrame = cashierCf
-                        lastTeleportTick = tick()
-                        task.wait(0.2)
-
                         rootPart.Anchored = true
+                        lastTeleportTick = tick()
+                        task.wait(0.15)
+
                         equipCombatTool()
                         task.wait(0.1)
 
@@ -593,16 +593,12 @@ task.spawn(function()
                             if tick() - startTime > 10 then break end 
                             if not isValidCashier(cashier) then break end
 
-                            -- Continually force position and keep hard-anchored inside the cashier
-                            rootPart.Anchored = true
-                            rootPart.CFrame = cashierCf
-
                             equipCombatTool()
 
-                            -- Charge Attack Sequence
+                            -- Charge Attack Sequence (1.4s duration without resetting position mid-charge)
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(1.3) 
+                                task.wait(1.4) 
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
