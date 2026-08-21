@@ -15,7 +15,7 @@ local Config = {
     TeleportWait = 1.0,                                         
     NotificationDuration = 3,
     CollectCooldown = 0.2, 
-    CashierAttackDelay = 0.5, -- Optimized for consistent hitting
+    CashierAttackDelay = 0.5,
 }
 
 -- State Variables
@@ -665,10 +665,14 @@ task.spawn(function()
                             rootPart.Anchored = false 
                             equipCombatTool()
 
-                            -- Send charge attack: press down, hold for 1.4 seconds, then release
+                            -- Reliable Charge Attack: press down mouse, wait 1.4 seconds for charge, then release
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(1.4)
+                            end)
+                            
+                            task.wait(1.4)
+                            
+                            pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
