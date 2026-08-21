@@ -93,10 +93,32 @@ local function equipCombatTool()
     return false
 end
 
+-- Function to find the exact damageable part of a cashier model/object
+local function getCashierDamagePart(cashier)
+    if not cashier then return nil end
+    if cashier:IsA("BasePart") then
+        return cashier
+    elseif cashier:IsA("Model") then
+        -- Check common damageable part names or fallback to primary part / first basepart
+        local hitPart = cashier:FindFirstChild("HumanoidRootPart") or cashier:FindFirstChild("Head") or cashier.PrimaryPart
+        if not hitPart then
+            for _, descendant in ipairs(cashier:GetDescendants()) do
+                if descendant:IsA("BasePart") and descendant.Transparency < 0.9 and descendant.CanCollide then
+                    hitPart = descendant
+                    break
+                end
+            end
+        end
+        return hitPart or cashier:GetPivot().Position
+    end
+    return nil
+end
+
 local function getObjectCFrame(obj)
     if not obj then return nil end
-    if obj:IsA("BasePart") then
-        return obj.CFrame
+    local part = getCashierDamagePart(obj)
+    if typeof(part) == "Instance" and part:IsA("BasePart") then
+        return part.CFrame
     elseif obj:IsA("Model") then
         if obj.PrimaryPart then
             return obj.PrimaryPart.CFrame
@@ -119,13 +141,9 @@ local function isValidCashier(cashier)
                 isValid = true
             end
         else
-            if cashier:IsA("BasePart") then
-                if cashier.Transparency < 0.9 and cashier.CanCollide then
-                    isValid = true
-                end
-            elseif cashier:IsA("Model") then
-                local primary = cashier.PrimaryPart or cashier:FindFirstChildWhichIsA("BasePart")
-                if primary and primary.Transparency < 0.9 and primary.CanCollide then
+            local part = getCashierDamagePart(cashier)
+            if part and part:IsA("BasePart") then
+                if part.Transparency < 0.9 and part.CanCollide then
                     isValid = true
                 end
             end
@@ -203,7 +221,6 @@ local function interactWithMoneyNaturally(dropObj)
     local screenPos, onScreen = camera:WorldToViewportPoint(cf.Position)
     if not onScreen or screenPos.Z <= 0 then return end
 
-    -- Shifted slightly to the right by adding 10 pixels to X
     local x, y = screenPos.X - 10, screenPos.Y
 
     pcall(function()
@@ -215,7 +232,7 @@ local function interactWithMoneyNaturally(dropObj)
     end)
 end
 
--- Strict Upright Stabilizer (Prevents tipping, flinging, and locking rotation completely flat)
+-- Strict Upright Stabilizer
 RunService.Heartbeat:Connect(function()
     if isAutoFarmRunning or isCashierFarmRunning then
         local char = LocalPlayer.Character
@@ -226,7 +243,6 @@ RunService.Heartbeat:Connect(function()
                 if humanoid then
                     humanoid.PlatformStand = false
                 end
-                -- Force completely upright orientation (Lock roll/pitch to 0) if not explicitly anchored
                 if not rootPart.Anchored then
                     local currentPos = rootPart.Position
                     local lookVec = rootPart.CFrame.LookVector
@@ -242,7 +258,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Slow, smooth glide directly to each piece of money while locked strictly upright
 local function collectMoneyDropsByTweeningWithin20Studs()
     local startTime = tick()
     
@@ -303,10 +318,7 @@ local function collectMoneyDropsByTweeningWithin20Studs()
     end
 end
 
---[================================================================]--
---                    DEAD / DOWNED CHECK LOGIC                      --
---[================================================================]--
-
+-- Dead / Downed Check Logic
 task.spawn(function()
     while true do
         task.wait(1)
@@ -327,10 +339,7 @@ task.spawn(function()
     end
 end)
 
---[================================================================]--
---                            UI CREATION                            --
---[================================================================]--
-
+-- UI Creation
 if CoreGui:FindFirstChild("DaHoodAutoFarmUI") then
     CoreGui.DaHoodAutoFarmUI:Destroy()
 end
@@ -611,21 +620,20 @@ task.spawn(function()
                     if not isCashierFarmRunning or isPlayerDownedOrDead() then break end
                     if not isValidCashier(cashier) then continue end
 
-                    local cashierCf = getObjectCFrame(cashier)
-
-                    if cashierCf then
+                    local damagePart = getCashierDamagePart(cashier)
+                    if damagePart and damagePart:IsA("BasePart") then
                         rootPart.Anchored = false
                         local currentTime = tick()
                         if currentTime - lastTeleportTick < Config.TeleportWait then
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Position character directly right next to the cashier (offset slightly forward/sideways so they don't clip inside)
-                        local cashierPos = cashierCf.Position
-                        local standPos = cashierPos + (cashierCf.LookVector * 1.5) + Vector3.new(0, 0, 0)
+                        -- Position character directly right next to the exact damage part
+                        local partPos = damagePart.Position
+                        local standPos = partPos + (damagePart.CFrame.LookVector * 1.5) + Vector3.new(0, 0, 0)
                         
-                        -- Face directly toward the cashier's position
-                        local targetCashierCf = CFrame.new(standPos, cashierPos)
+                        -- Look directly at the damageable part to ensure register hit alignment
+                        local targetCashierCf = CFrame.new(standPos, partPos)
 
                         local distance = (rootPart.Position - standPos).Magnitude
                         local tweenDuration = math.clamp(distance / 700, 0.05, 0.25)
@@ -635,7 +643,7 @@ task.spawn(function()
                         tween:Play()
                         tween.Completed:Wait()
 
-                        -- Lock anchor in place tightly right next to the cashier
+                        -- Lock anchor in place tightly right next to the damage part
                         rootPart.Anchored = true
                         lastTeleportTick = tick()
                         task.wait(0.1)
@@ -650,7 +658,7 @@ task.spawn(function()
 
                             equipCombatTool()
 
-                            -- 1.4s Charge Attack Sequence
+                            -- 1.4s Charge Attack Sequence directly targeting the register part
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
                                 task.wait(1.4) 
