@@ -214,7 +214,27 @@ local function interactWithMoneyNaturally(dropObj)
     end)
 end
 
--- Much slower, smooth glide directly to each piece of money with a solid 0.5s pause
+-- Anti-Fling & Upright Stabilizer Loop
+RunService.Heartbeat:Connect(function()
+    if isAutoFarmRunning or isCashierFarmRunning then
+        local char = LocalPlayer.Character
+        if char then
+            local rootPart = char:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                -- Lock orientation so player stays completely upright and never flips/flings
+                local currentPos = rootPart.Position
+                local lookVector = rootPart.CFrame.LookVector
+                -- Strip pitch and roll to force completely vertical stance
+                local flatLook = Vector3.new(lookVector.X, 0, lookVector.Z)
+                if flatLook.Magnitude > 0.01 then
+                    rootPart.CFrame = CFrame.new(currentPos, currentPos + flatLook)
+                end
+            end
+        end
+    end
+end)
+
+-- Slow, smooth glide directly to each piece of money while staying upright
 local function collectMoneyDropsByTweeningWithin20Studs()
     local startTime = tick()
     
@@ -239,14 +259,19 @@ local function collectMoneyDropsByTweeningWithin20Studs()
             if obj.Name == "MoneyDrop" and obj.Parent then
                 local cf = getObjectCFrame(obj)
                 if cf then
-                    local targetCf = cf + Vector3.new(0, 1.5, 0)
-                    local dist = (targetCf.Position - rootPart.Position).Magnitude
+                    local targetPos = cf.Position + Vector3.new(0, 1.5, 0)
+                    local dist = (targetPos - rootPart.Position).Magnitude
                     if dist <= 20 then
                         foundAny = true
                         unequipActiveTool()
                         
-                        -- Slow, deliberate glide speed for reliable pickup
-                        local distance = (rootPart.Position - targetCf.Position).Magnitude
+                        -- Keep upright while creating target CFrame
+                        local lookVec = rootPart.CFrame.LookVector
+                        local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
+                        if flatLook.Magnitude < 0.01 then flatLook = Vector3.new(0, 0, -1) end
+                        local targetCf = CFrame.new(targetPos, targetPos + flatLook)
+                        
+                        local distance = (rootPart.Position - targetPos).Magnitude
                         local tweenDuration = math.clamp(distance / 50, 0.4, 1.2)
                         
                         local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
@@ -257,7 +282,6 @@ local function collectMoneyDropsByTweeningWithin20Studs()
                         addTrackedMoney(getMoneyValue(obj))
                         interactWithMoneyNaturally(obj)
                         
-                        -- Exact 0.5 second pause on the money drop so the game registers it
                         task.wait(0.5)
                     end
                 end
@@ -589,12 +613,17 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Fast tween into cashier position
+                        -- Keep upright when tweening to cashier
+                        local lookVec = rootPart.CFrame.LookVector
+                        local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
+                        if flatLook.Magnitude < 0.01 then flatLook = Vector3.new(0, 0, -1) end
+                        local targetCashierCf = CFrame.new(cashierCf.Position, cashierCf.Position + flatLook)
+
                         local distance = (rootPart.Position - cashierCf.Position).Magnitude
                         local tweenDuration = math.clamp(distance / 700, 0.05, 0.25)
                         
                         local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
-                        local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = cashierCf})
+                        local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCashierCf})
                         tween:Play()
                         tween.Completed:Wait()
 
