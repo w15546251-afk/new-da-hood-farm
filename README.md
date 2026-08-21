@@ -206,7 +206,7 @@ local function interactWithMoneyNaturally(dropObj)
     local screenPos, onScreen = camera:WorldToViewportPoint(cf.Position)
     if not onScreen or screenPos.Z <= 0 then return end
 
-    local x, y = screenPos.X + 40, screenPos.Y
+    local x, y = screenPos.X, screenPos.Y
 
     pcall(function()
         VirtualInputManager:SendMouseMoveEvent(x, y, workspace)
@@ -707,7 +707,7 @@ task.spawn(function()
                         lastTeleportTick = tick()
                         task.wait(0.4)
 
-                        local lockedPositionCFrame = targetBaseCFrame - Vector3.new(0, 3, 0)
+                        local lockedPositionCFrame = cashierCf
                         rootPart.CFrame = lockedPositionCFrame
                         rootPart.Anchored = true
 
@@ -847,3 +847,4 @@ MinimizeButton.MouseButton1Click:Connect(function()
         TweenService:Create(MainFrame, TweenInfo.new(0.2), {Size = UDim2.new(0, 320, 0, 420)}):Play()
     end
 end)
+
