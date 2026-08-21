@@ -214,11 +214,11 @@ local function interactWithMoneyNaturally(dropObj)
     end)
 end
 
--- Tween-based money collection for Cashier Farm
+-- Slower tween-based money collection with a 0.5-second pause on each piece
 local function collectMoneyDropsByTweeningWithin20Studs()
     local startTime = tick()
     
-    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 3.0) do
+    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 4.0) do
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then break end
         local rootPart = char.HumanoidRootPart
@@ -245,9 +245,9 @@ local function collectMoneyDropsByTweeningWithin20Studs()
                         foundAny = true
                         unequipActiveTool()
                         
-                        -- Super-fast smooth tween to money drop
+                        -- Slower glide to money drop (adjusted divisor for smoother motion)
                         local distance = (rootPart.Position - targetCf.Position).Magnitude
-                        local tweenDuration = math.clamp(distance / 600, 0.04, 0.2)
+                        local tweenDuration = math.clamp(distance / 150, 0.15, 0.5)
                         
                         local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
                         local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCf})
@@ -256,7 +256,9 @@ local function collectMoneyDropsByTweeningWithin20Studs()
                         
                         addTrackedMoney(getMoneyValue(obj))
                         interactWithMoneyNaturally(obj)
-                        task.wait(0.05)
+                        
+                        -- Exact 0.5 second pause on each piece of money
+                        task.wait(0.5)
                     end
                 end
             end
@@ -546,7 +548,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---          CASHIER FARM LOGIC (SUPER FAST TWEEN & ATTACK)          --
+--             CASHIER FARM LOGIC (TWEEN & ATTACK)                  --
 --[================================================================]--
 
 task.spawn(function()
@@ -587,7 +589,7 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Super fast high-speed tween into the cashier position
+                        -- Fast tween into cashier position
                         local distance = (rootPart.Position - cashierCf.Position).Magnitude
                         local tweenDuration = math.clamp(distance / 700, 0.05, 0.25)
                         
@@ -596,7 +598,7 @@ task.spawn(function()
                         tween:Play()
                         tween.Completed:Wait()
 
-                        -- Lock anchor in place so it doesn't move
+                        -- Lock anchor in place for attacks
                         rootPart.Anchored = true
                         lastTeleportTick = tick()
                         task.wait(0.1)
