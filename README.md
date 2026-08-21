@@ -226,14 +226,16 @@ RunService.Heartbeat:Connect(function()
                 if humanoid then
                     humanoid.PlatformStand = false
                 end
-                -- Force completely upright orientation (Lock roll/pitch to 0)
-                local currentPos = rootPart.Position
-                local lookVec = rootPart.CFrame.LookVector
-                local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
-                if flatLook.Magnitude > 0.01 then
-                    rootPart.CFrame = CFrame.new(currentPos, currentPos + flatLook)
-                    rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
-                    rootPart.AssemblyAngularVelocity = Vector3.zero
+                -- Force completely upright orientation (Lock roll/pitch to 0) if not explicitly anchored
+                if not rootPart.Anchored then
+                    local currentPos = rootPart.Position
+                    local lookVec = rootPart.CFrame.LookVector
+                    local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
+                    if flatLook.Magnitude > 0.01 then
+                        rootPart.CFrame = CFrame.new(currentPos, currentPos + flatLook)
+                        rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
+                        rootPart.AssemblyAngularVelocity = Vector3.zero
+                    end
                 end
             end
         end
@@ -618,12 +620,14 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        local lookVec = rootPart.CFrame.LookVector
-                        local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
-                        if flatLook.Magnitude < 0.01 then flatLook = Vector3.new(0, 0, -1) end
-                        local targetCashierCf = CFrame.new(cashierCf.Position, cashierCf.Position + flatLook)
+                        -- Position character directly right next to the cashier (offset slightly forward/sideways so they don't clip inside)
+                        local cashierPos = cashierCf.Position
+                        local standPos = cashierPos + (cashierCf.LookVector * 1.5) + Vector3.new(0, 0, 0)
+                        
+                        -- Face directly toward the cashier's position
+                        local targetCashierCf = CFrame.new(standPos, cashierPos)
 
-                        local distance = (rootPart.Position - cashierCf.Position).Magnitude
+                        local distance = (rootPart.Position - standPos).Magnitude
                         local tweenDuration = math.clamp(distance / 700, 0.05, 0.25)
                         
                         local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
@@ -631,7 +635,7 @@ task.spawn(function()
                         tween:Play()
                         tween.Completed:Wait()
 
-                        -- Lock anchor in place for attacks
+                        -- Lock anchor in place tightly right next to the cashier
                         rootPart.Anchored = true
                         lastTeleportTick = tick()
                         task.wait(0.1)
