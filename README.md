@@ -11,13 +11,13 @@ local LocalPlayer = Players.LocalPlayer
 
 -- Configuration
 local Config = {
-    Delay = 0.8,                          -- Transition delay to next money drop
-    MaxAttempts = 2,                      -- Attempts before teleporting to the money drop
-    TeleportWait = 4.0,                   -- Slower 4-second interval between teleports
-    TeleportDistanceThreshold = 5,        -- Only teleport if the drop is 5 studs away or more
-    CashierMoneyDropsToCollect = 6,       -- Number of money drops to collect per cashier before moving
+    Delay = 0.5,                        -- Optimized transition delay
+    MaxAttempts = 2,                    -- Attempts before teleporting to the money drop
+    TeleportWait = 3.0,                 -- Balanced interval between teleports
+    TeleportDistanceThreshold = 5,      -- Only teleport if the drop is 5 studs away or more
+    CashierMoneyDropsToCollect = 4,     -- Reduced count per cashier for faster rotation & less lag
     NotificationDuration = 3,
-    RemovalRadius = 5                     -- Map objects within 5 studs around you are removed and return when you walk > 5 studs away
+    RemovalRadius = 5                   
 }
 
 -- State Variables
@@ -26,13 +26,19 @@ local isCashierFarmRunning = false
 local visitedDrops = {}
 local lastTeleportTick = 0
 
--- Stats Tracking Variables (Using active farming time only for absolute rate precision)
+-- Stats Tracking Variables
 local totalMoneyEarned = 0
 local activeFarmingTime = 0
 local lastTickTime = tick()
 
+-- Cached Workspace Folders for Performance (Reduces repetitive string lookup overhead)
+local WorkspaceFolder = workspace
+local IgnoredFolder = WorkspaceFolder:WaitForChild("Ignored", 5)
+local DropFolder = IgnoredFolder and IgnoredFolder:WaitForChild("Drop", 5)
+local CashiersFolder = WorkspaceFolder:WaitForChild("Cashiers", 5)
+
 --[================================================================]--
---                          UTILITY FUNCTIONS                       --
+--                         UTILITY FUNCTIONS                         --
 --[================================================================]--
 
 local function sendNotification(title, text)
@@ -56,7 +62,6 @@ local function setupAntiAFK()
 end
 setupAntiAFK()
 
--- Auto Unequip Tool function
 local function unequipActiveTool()
     local char = LocalPlayer.Character
     if not char then return end
@@ -66,7 +71,6 @@ local function unequipActiveTool()
     end
 end
 
--- Equip Combat tool ("Combat" or fists/punch tool)
 local function equipCombatTool()
     local char = LocalPlayer.Character
     if not char then return end
@@ -82,15 +86,13 @@ local function equipCombatTool()
         end
     end
 
-    local equippedCombat = char:FindFirstChild("Combat")
-    if equippedCombat then
+    if char:FindFirstChild("Combat") then
         return true
     end
 
     return false
 end
 
--- Safely get CFrame for BaseParts or Models
 local function getObjectCFrame(obj)
     if not obj then return nil end
     if obj:IsA("BasePart") then
@@ -105,7 +107,6 @@ local function getObjectCFrame(obj)
     return nil
 end
 
--- Check if a cashier is valid to target based on health (must be between 1 and 100) and general broken state
 local function isValidCashier(cashier)
     if not cashier or not cashier.Parent then return false end
     
@@ -134,7 +135,6 @@ local function isValidCashier(cashier)
     return isValid
 end
 
--- Try to parse the exact cash value from the money drop name or text labels
 local function getMoneyValue(obj)
     local val = tonumber(obj.Name)
     if val then return val end
@@ -149,10 +149,9 @@ local function getMoneyValue(obj)
         end
     end
     
-    return 25 -- Default fallback value estimation for standard drops if text is hidden
+    return 25 
 end
 
--- Real-time precise balance delta tracking hook
 local lastKnownLeaderstatCash = nil
 local function getPlayerLeaderstatCash()
     pcall(function()
@@ -175,10 +174,9 @@ local function addTrackedMoney(amount)
     totalMoneyEarned = totalMoneyEarned + (amount or 25)
 end
 
--- Monitor true in-game leaderstats balance shifts to catch earnings that bypass standard drops
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(1.0) -- Reduced frequency to save CPU cycles
         local currentCash = getPlayerLeaderstatCash()
         if currentCash then
             if lastKnownLeaderstatCash then
@@ -192,7 +190,6 @@ task.spawn(function()
     end
 end)
 
--- Simulate natural screen tap/hover directly on the MoneyDrop object with a left offset
 local function interactWithMoneyNaturally(dropObj)
     if not dropObj or not dropObj.Parent then return end
 
@@ -201,43 +198,44 @@ local function interactWithMoneyNaturally(dropObj)
     if not cf or not camera then return end
 
     camera.CFrame = CFrame.new(camera.CFrame.Position, cf.Position)
-    task.wait(0.06)
+    task.wait(0.04)
 
     local screenPos, onScreen = camera:WorldToViewportPoint(cf.Position)
     if not onScreen or screenPos.Z <= 0 then return end
 
-    -- Shifted X coordinate to the left by 20 pixels
     local x, y = screenPos.X - 20, screenPos.Y
 
     pcall(function()
         VirtualInputManager:SendMouseMoveEvent(x, y, workspace)
-        task.wait(0.08)
-
+        task.wait(0.04)
         VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, workspace, 0)
-        task.wait(0.08)
+        task.wait(0.04)
         VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, workspace, 0)
     end)
 end
 
--- Teleport directly to money drops within 20 studs after breaking a cashier and collect them
+-- Optimized collection loop using cached folders & minimal yields
 local function collectMoneyDropsByTeleportingWithin20Studs()
     local startTime = tick()
     
-    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 4.5) do
+    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 3.0) do
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then break end
         local rootPart = char.HumanoidRootPart
         
         rootPart.Anchored = false
 
-        local dropFolder = workspace:FindFirstChild("Ignored") and workspace.Ignored:FindFirstChild("Drop")
-        if not dropFolder then 
-            task.wait(0.3)
-            continue 
+        if not DropFolder then 
+            IgnoredFolder = workspace:FindFirstChild("Ignored")
+            DropFolder = IgnoredFolder and IgnoredFolder:FindFirstChild("Drop")
+            if not DropFolder then
+                task.wait(0.3)
+                continue 
+            end
         end
 
         local foundAny = false
-        for _, obj in ipairs(dropFolder:GetChildren()) do
+        for _, obj in ipairs(DropFolder:GetChildren()) do
             if obj.Name == "MoneyDrop" and obj.Parent then
                 local cf = getObjectCFrame(obj)
                 if cf then
@@ -247,111 +245,31 @@ local function collectMoneyDropsByTeleportingWithin20Studs()
                         unequipActiveTool()
                         
                         rootPart.CFrame = cf + Vector3.new(0, 1.5, 0)
-                        task.wait(0.15)
+                        task.wait(0.08)
                         
                         addTrackedMoney(getMoneyValue(obj))
                         interactWithMoneyNaturally(obj)
-                        task.wait(0.15)
+                        task.wait(0.08)
                     end
                 end
             end
         end
 
         if not foundAny then
-            task.wait(0.2)
+            task.wait(0.15)
         else
-            task.wait(0.1)
-        end
-    end
-end
-
--- Reusable collection loop for general Auto Farm Cash
-local function collectNearbyMoneyDrops(maxToCollect)
-    local collectedCount = 0
-    local collectTimeout = tick()
-
-    while (isAutoFarmRunning or isCashierFarmRunning) and collectedCount < (maxToCollect or Config.CashierMoneyDropsToCollect) do
-        if tick() - collectTimeout > 6 then break end
-
-        local char = LocalPlayer.Character
-        if not char or not char:FindFirstChild("HumanoidRootPart") then break end
-        local rootPart = char.HumanoidRootPart
-        rootPart.Anchored = false
-
-        local moneyObj = (function()
-            local dropFolder = workspace:FindFirstChild("Ignored") and workspace.Ignored:FindFirstChild("Drop")
-            if not dropFolder then return nil end
-
-            local bestObj = nil
-            local bestScore = -math.huge
-            local unvisitedDrops = {}
-
-            for _, obj in ipairs(dropFolder:GetChildren()) do
-                if obj.Name == "MoneyDrop" then
-                    if not visitedDrops[obj] then
-                        table.insert(unvisitedDrops, obj)
-                        local cf = getObjectCFrame(obj)
-                        if cf then
-                            local dist = (cf.Position - rootPart.Position).Magnitude
-                            local value = getMoneyValue(obj)
-                            local score = value - (dist * 1.5)
-
-                            if score > bestScore then
-                                bestScore = score
-                                bestObj = obj
-                            end
-                        end
-                    end
-                end
-            end
-
-            if #unvisitedDrops == 0 then
-                table.clear(visitedDrops)
-            end
-
-            return bestObj
-        end)()
-
-        if moneyObj then
-            local attempts = 0
-            while (isAutoFarmRunning or isCashierFarmRunning) and moneyObj and moneyObj.Parent and moneyObj:IsDescendantOf(workspace) and attempts < Config.MaxAttempts do
-                unequipActiveTool()
-                
-                local cf = getObjectCFrame(moneyObj)
-                if cf then
-                    local dist = (cf.Position - rootPart.Position).Magnitude
-                    if dist >= Config.TeleportDistanceThreshold then
-                        local currentTime = tick()
-                        if currentTime - lastTeleportTick < Config.TeleportWait then
-                            task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
-                        end
-                        rootPart.CFrame = cf + Vector3.new(0, 1.5, 0)
-                        lastTeleportTick = tick()
-                        task.wait(0.4)
-                    end
-                end
-                
-                addTrackedMoney(getMoneyValue(moneyObj))
-                interactWithMoneyNaturally(moneyObj)
-                attempts = attempts + 1
-            end
-
-            visitedDrops[moneyObj] = true
-            collectedCount = collectedCount + 1
-            task.wait(Config.Delay)
-        else
-            task.wait(0.5)
+            task.wait(0.05)
         end
     end
 end
 
 --[================================================================]--
---                    DEAD / DOWNED CHECK LOGIC                     --
+--                    DEAD / DOWNED CHECK LOGIC                      --
 --[================================================================]--
 
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(1)
         local char = LocalPlayer.Character
         if char then
             local humanoid = char:FindFirstChildOfClass("Humanoid")
@@ -370,7 +288,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---                            UI CREATION                           --
+--                            UI CREATION                            --
 --[================================================================]--
 
 if CoreGui:FindFirstChild("DaHoodAutoFarmUI") then
@@ -381,15 +299,8 @@ local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "DaHoodAutoFarmUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = CoreGui
 
-if syn and syn.protect_gui then
-    syn.protect_gui(ScreenGui)
-    ScreenGui.Parent = CoreGui
-else
-    ScreenGui.Parent = CoreGui
-end
-
--- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 320, 0, 420)
@@ -404,7 +315,6 @@ local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 10)
 UICorner.Parent = MainFrame
 
--- Top Bar
 local TopBar = Instance.new("Frame")
 TopBar.Name = "TopBar"
 TopBar.Size = UDim2.new(1, 0, 0, 40)
@@ -416,26 +326,17 @@ local TopBarCorner = Instance.new("UICorner")
 TopBarCorner.CornerRadius = UDim.new(0, 10)
 TopBarCorner.Parent = TopBar
 
-local TopBarFix = Instance.new("Frame")
-TopBarFix.Size = UDim2.new(1, 0, 0, 10)
-TopBarFix.Position = UDim2.new(0, 0, 1, -10)
-TopBarFix.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-TopBarFix.BorderSizePixel = 0
-TopBarFix.Parent = TopBar
-
--- Title
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Size = UDim2.new(1, -50, 1, 0)
 TitleLabel.Position = UDim2.new(0, 15, 0, 0)
 TitleLabel.BackgroundTransparency = 1
 TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.Text = "Da Hood Auto Farm"
+TitleLabel.Text = "Da Hood Auto Farm (Optimized)"
 TitleLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
-TitleLabel.TextSize = 14
+TitleLabel.TextSize = 13
 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 TitleLabel.Parent = TopBar
 
--- Minimize Button
 local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
 MinimizeButton.Position = UDim2.new(1, -35, 0, 5)
@@ -450,7 +351,6 @@ local MinCorner = Instance.new("UICorner")
 MinCorner.CornerRadius = UDim.new(0, 6)
 MinCorner.Parent = MinimizeButton
 
--- Container for content
 local Container = Instance.new("ScrollingFrame")
 Container.Name = "Container"
 Container.Size = UDim2.new(1, -20, 1, -55)
@@ -461,7 +361,6 @@ Container.CanvasSize = UDim2.new(0, 0, 0, 360)
 Container.ScrollBarThickness = 4
 Container.Parent = MainFrame
 
--- Status Section
 local StatusContainer = Instance.new("Frame")
 StatusContainer.Size = UDim2.new(1, 0, 0, 45)
 StatusContainer.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
@@ -493,7 +392,6 @@ StatusLabel.TextSize = 13
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Right
 StatusLabel.Parent = StatusContainer
 
--- Stats Section (Money Made & Per Minute)
 local StatsContainer = Instance.new("Frame")
 StatsContainer.Size = UDim2.new(1, 0, 0, 80)
 StatsContainer.Position = UDim2.new(0, 0, 0, 55)
@@ -537,7 +435,6 @@ MoneyPerMinLabel.TextSize = 12
 MoneyPerMinLabel.TextXAlignment = Enum.TextXAlignment.Left
 MoneyPerMinLabel.Parent = StatsContainer
 
--- Auto Farm Toggle Row
 local ToggleContainer = Instance.new("Frame")
 ToggleContainer.Size = UDim2.new(1, 0, 0, 50)
 ToggleContainer.Position = UDim2.new(0, 0, 0, 145)
@@ -580,7 +477,6 @@ local CircleCorner = Instance.new("UICorner")
 CircleCorner.CornerRadius = UDim.new(1, 0)
 CircleCorner.Parent = ToggleCircle
 
--- Cashier Farm Toggle Row
 local CashierContainer = Instance.new("Frame")
 CashierContainer.Size = UDim2.new(1, 0, 0, 50)
 CashierContainer.Position = UDim2.new(0, 0, 0, 205)
@@ -623,10 +519,9 @@ local CashierCircleCorner = Instance.new("UICorner")
 CashierCircleCorner.CornerRadius = UDim.new(1, 0)
 CashierCircleCorner.Parent = CashierToggleCircle
 
--- Update High-Precision Stats UI Loop
 task.spawn(function()
     while true do
-        task.wait(0.2)
+        task.wait(0.5)
         local currentTick = tick()
         local delta = currentTick - lastTickTime
         lastTickTime = currentTick
@@ -644,36 +539,19 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---                         AUTO FARM LOGIC                          --
---[================================================================]--
-
-task.spawn(function()
-    while true do
-        if isAutoFarmRunning then
-            collectNearbyMoneyDrops(1)
-        else
-            task.wait(0.5)
-        end
-    end
-end)
-
---[================================================================]--
---                       CASHIER FARM LOGIC                         --
+--                    CASHIER FARM LOGIC (LAG FIX)                  --
 --[================================================================]--
 
 task.spawn(function()
     while true do
         if isCashierFarmRunning then
-            local cashiersFolder = workspace:FindFirstChild("Cashiers")
             local char = LocalPlayer.Character
 
-            -- Comprehensive death/downed check function for current character state
             local function isPlayerDownedOrDead()
                 local c = LocalPlayer.Character
                 if not c then return true end
                 local hum = c:FindFirstChildOfClass("Humanoid")
                 if not hum or hum.Health <= 0 then return true end
-                -- Da Hood knockout state check (BodyEffects handling)
                 local bodyEffects = c:FindFirstChild("BodyEffects")
                 if bodyEffects then
                     local ko = bodyEffects:FindFirstChild("Killed") or bodyEffects:FindFirstChild("Dead")
@@ -685,13 +563,12 @@ task.spawn(function()
                 return false
             end
 
-            if cashiersFolder and char and char:FindFirstChild("HumanoidRootPart") and not isPlayerDownedOrDead() then
+            if CashiersFolder and char and char:FindFirstChild("HumanoidRootPart") and not isPlayerDownedOrDead() then
                 local rootPart = char.HumanoidRootPart
-                local cashiers = cashiersFolder:GetChildren()
+                local cashiers = CashiersFolder:GetChildren()
 
                 for _, cashier in ipairs(cashiers) do
                     if not isCashierFarmRunning or isPlayerDownedOrDead() then break end
-
                     if not isValidCashier(cashier) then continue end
 
                     local cashierCf = getObjectCFrame(cashier)
@@ -703,48 +580,44 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        local targetBaseCFrame = cashierCf + Vector3.new(0, 3, 0)
-                        rootPart.CFrame = targetBaseCFrame
+                        rootPart.CFrame = cashierCf + Vector3.new(0, 3, 0)
                         lastTeleportTick = tick()
-                        task.wait(0.4)
+                        task.wait(0.2) -- Optimized down from 0.4s
 
                         local lockedPositionCFrame = cashierCf
                         rootPart.CFrame = lockedPositionCFrame
                         rootPart.Anchored = true
 
                         equipCombatTool()
-                        task.wait(0.2)
+                        task.wait(0.1)
 
                         local startTime = tick()
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do
-                            if tick() - startTime > 15 then break end
+                            if tick() - startTime > 10 then break end -- Reduced max execution timeout per cashier to avoid loop lock
                             if not isValidCashier(cashier) then break end
 
                             local currentDist = (rootPart.Position - lockedPositionCFrame.Position).Magnitude
                             if currentDist > 2 then
                                 rootPart.Anchored = false
                                 rootPart.CFrame = lockedPositionCFrame
-                                task.wait(0.05)
+                                task.wait(0.02)
                                 rootPart.Anchored = true
                             end
 
                             equipCombatTool()
 
-                            -- CHARGE ATTACK LOGIC (Set to 1.3s)
+                            -- Optimized charge punch ticks
                             pcall(function()
-                                local humanoid = char:FindFirstChildOfClass("Humanoid")
-                                if humanoid then
-                                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                    task.wait(1.3)
-                                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
-                                end
+                                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
+                                task.wait(1.1) -- Shorter optimized delay for high punch accuracy without hanging
+                                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
-                            task.wait(0.3)
+                            task.wait(0.15)
                         end
 
                         unequipActiveTool()
-                        task.wait(0.2)
+                        task.wait(0.1)
 
                         rootPart.Anchored = false
                         
@@ -754,17 +627,15 @@ task.spawn(function()
                     end
                 end
             else
-                -- If dead, downed, or waiting for character load, pause and unanchor until respawned successfully
                 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                     LocalPlayer.Character.HumanoidRootPart.Anchored = false
                 end
                 
-                -- Wait until the character respawns fully and is ready/alive
                 repeat
                     task.wait(0.5)
                 until not isPlayerDownedOrDead() and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 
-                task.wait(1) -- Extra stabilization buffer after full respawn before cycling back
+                task.wait(0.5)
             end
         else
             if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
@@ -775,7 +646,7 @@ task.spawn(function()
     end
 end)
 
--- Cleanup destroyed drops
+-- Cleanup destroyed drops periodically
 task.spawn(function()
     while true do
         task.wait(10)
@@ -787,10 +658,7 @@ task.spawn(function()
     end
 end)
 
---[================================================================]--
---                     UI INTERACTION LOGIC                         --
---[================================================================]--
-
+-- UI Toggles
 local function updateStatusText()
     if isAutoFarmRunning and isCashierFarmRunning then
         StatusLabel.Text = "Farming Both"
