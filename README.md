@@ -548,7 +548,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---       CASHIER FARM LOGIC (HP <= 200 FILTER & FULL 25-STUD SWEEP)--
+--       CASHIER FARM LOGIC (EXCLUDES VAULT, HP <= 200, 25-STUD SWEEP)
 --[================================================================]--
 
 task.spawn(function()
@@ -579,6 +579,22 @@ task.spawn(function()
                 for _, cashier in ipairs(cashiers) do
                     if not isCashierFarmRunning or isPlayerDownedOrDead() then break end
                     if not cashier or not cashier.Parent then continue end
+
+                    -- Skip VAULT / Safe explicitly
+                    local cashierNameLower = cashier.Name:lower()
+                    if cashierNameLower:find("vault") or cashierNameLower:find("safe") then
+                        continue
+                    end
+                    local isVaultDescendant = false
+                    for _, desc in ipairs(cashier:GetDescendants()) do
+                        if desc.Name:lower():find("vault") or desc.Name:lower():find("safe") then
+                            isVaultDescendant = true
+                            break
+                        end
+                    end
+                    if isVaultDescendant then
+                        continue
+                    end
 
                     -- Check if cashier has Humanoid and Health is <= 200
                     local cashierHumanoid = cashier:FindFirstChildOfClass("Humanoid")
