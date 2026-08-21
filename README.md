@@ -214,11 +214,11 @@ local function interactWithMoneyNaturally(dropObj)
     end)
 end
 
--- Slower tween-based money collection with a 0.5-second pause on each piece
+-- Much slower, smooth glide directly to each piece of money with a solid 0.5s pause
 local function collectMoneyDropsByTweeningWithin20Studs()
     local startTime = tick()
     
-    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 4.0) do
+    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 6.0) do
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then break end
         local rootPart = char.HumanoidRootPart
@@ -245,9 +245,9 @@ local function collectMoneyDropsByTweeningWithin20Studs()
                         foundAny = true
                         unequipActiveTool()
                         
-                        -- Slower glide to money drop (adjusted divisor for smoother motion)
+                        -- Slow, deliberate glide speed for reliable pickup
                         local distance = (rootPart.Position - targetCf.Position).Magnitude
-                        local tweenDuration = math.clamp(distance / 150, 0.15, 0.5)
+                        local tweenDuration = math.clamp(distance / 50, 0.4, 1.2)
                         
                         local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
                         local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCf})
@@ -257,7 +257,7 @@ local function collectMoneyDropsByTweeningWithin20Studs()
                         addTrackedMoney(getMoneyValue(obj))
                         interactWithMoneyNaturally(obj)
                         
-                        -- Exact 0.5 second pause on each piece of money
+                        -- Exact 0.5 second pause on the money drop so the game registers it
                         task.wait(0.5)
                     end
                 end
