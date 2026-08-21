@@ -215,11 +215,11 @@ local function collectMoneyViaClickDetector(dropObj)
     return false
 end
 
--- MONEY COLLECTOR SWEEP (Slower tween speed for smoother collection)
+-- FAST MONEY COLLECTOR SWEEP (Shortened timeout so it moves on quickly)
 local function collectMoneyDropsByTweeningWithin30Studs()
     local startTime = tick()
     
-    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 2.0) do
+    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 1.5) do
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then break end
         local rootPart = char.HumanoidRootPart
@@ -264,8 +264,7 @@ local function collectMoneyDropsByTweeningWithin30Studs()
                 local targetCf = CFrame.new(targetPos, targetPos + Vector3.new(0, 0, -1))
                 
                 local distance = (rootPart.Position - targetPos).Magnitude
-                -- Changed from 70 to 35 to make the tween movement slower and smoother
-                local tweenDuration = math.clamp(distance / 35, 0.1, 0.4)
+                local tweenDuration = math.clamp(distance / 70, 0.05, 0.25)
                 
                 local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
                 local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCf})
@@ -549,7 +548,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---       CASHIER FARM LOGIC (ORIGINAL ATTACKING & FAST COLLECTION) --
+--      CASHIER FARM LOGIC (ORIGINAL ATTACKING & FAST COLLECTION) --
 --[================================================================]--
 
 task.spawn(function()
@@ -589,6 +588,7 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
+                        -- Position anchored inside core of cashier
                         local partPos = damagePart.Position
                         local targetCashierCf = CFrame.new(partPos, partPos + damagePart.CFrame.LookVector)
 
@@ -609,6 +609,7 @@ task.spawn(function()
 
                         local startTime = tick()
                         
+                        -- LOCKED INSIDE UNTIL BROKEN (ORIGINAL CHARGED ATTACK METHOD)
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do
                             if tick() - startTime > 30 then break end 
 
@@ -620,6 +621,7 @@ task.spawn(function()
                             rootPart.CFrame = targetCashierCf
                             equipCombatTool()
 
+                            -- Original stable charge attack method
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
                                 task.wait(1.4)
@@ -634,6 +636,7 @@ task.spawn(function()
 
                         rootPart.Anchored = false
                         
+                        -- QUICK MONEY COLLECTION & FAST SWITCH TO NEXT CASHIER
                         if not isPlayerDownedOrDead() then
                             collectMoneyDropsByTweeningWithin30Studs()
                         end
