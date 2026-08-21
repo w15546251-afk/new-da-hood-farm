@@ -15,7 +15,7 @@ local Config = {
     TeleportWait = 1.0,                                         
     NotificationDuration = 3,
     CollectCooldown = 0.2, 
-    CashierAttackDelay = 0.5, -- Optimized for consistent hitting
+    CashierAttackDelay = 0.8, -- Controls cashier attack speed
 }
 
 -- State Variables
@@ -59,6 +59,22 @@ local function setupAntiAFK()
     end)
 end
 setupAntiAFK()
+
+-- Auto-Jump if Seated (Prevents getting stuck in chairs/seats)
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        local char = LocalPlayer.Character
+        if char then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                if humanoid:GetState() == Enum.HumanoidStateType.Seated then
+                    humanoid.Jump = true
+                end
+            end
+        end
+    end
+end)
 
 local function unequipActiveTool()
     local char = LocalPlayer.Character
@@ -611,7 +627,7 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Offset position 2 studs away using the look vector
+                        -- Offset position 2 studs away using the look vector (or back vector)
                         local partPos = damagePart.Position
                         local offsetPos = partPos - (damagePart.CFrame.LookVector * 2)
                         local targetCashierCf = CFrame.new(offsetPos, partPos)
@@ -624,8 +640,7 @@ task.spawn(function()
                         tween:Play()
                         tween.Completed:Wait()
 
-                        -- Unanchor right before and during attacking to fix registration bugs
-                        rootPart.Anchored = false
+                        rootPart.Anchored = true
                         lastTeleportTick = tick()
                         task.wait(0.1)
 
@@ -642,15 +657,12 @@ task.spawn(function()
                                 break
                             end
 
-                            -- Keep unanchored so hit registration functions correctly with punch animations
                             rootPart.CFrame = targetCashierCf
-                            rootPart.Anchored = false 
                             equipCombatTool()
 
-                            -- Send click input to attack
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(0.05)
+                                task.wait(1.4)
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
