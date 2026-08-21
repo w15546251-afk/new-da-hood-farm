@@ -215,15 +215,13 @@ local function interactWithMoneyNaturally(dropObj)
     end)
 end
 
--- UPGRADED ANTI-FLING HIGH-EFFICIENCY MONEY COLLECTOR
+-- UPGRADED HIGH-EFFICIENCY MONEY COLLECTOR: Instant sweep & vacuum for cashier drops
 local function collectMoneyDropsByTeleportingWithin25Studs()
     local char = LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
     local rootPart = char.HumanoidRootPart
     
     rootPart.Anchored = false
-    rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-    rootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 
     local dropFolder = workspace:FindFirstChild("Ignored") and workspace.Ignored:FindFirstChild("Drop")
     if not dropFolder then return end
@@ -253,21 +251,11 @@ local function collectMoneyDropsByTeleportingWithin25Studs()
             local cf = getObjectCFrame(closestDrop)
             if cf then
                 unequipActiveTool()
-                
-                -- Anti-fling velocity kill right before moving
-                rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                rootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                
-                rootPart.CFrame = cf + Vector3.new(0, 1.2, 0)
-                
-                -- Kill velocity right after teleporting to prevent bouncing/flinging
-                rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                rootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-
+                rootPart.CFrame = cf + Vector3.new(0, 1.0, 0)
                 addTrackedMoney(getMoneyValue(closestDrop))
                 interactWithMoneyNaturally(closestDrop)
                 collectedCount = collectedCount + 1
-                task.wait(0.03)
+                task.wait(0.02) -- Minimal ultra-fast pacing to register clicks reliably
             end
         else
             break
@@ -287,7 +275,6 @@ local function collectNearbyMoneyDrops(maxToCollect)
         if not char or not char:FindFirstChild("HumanoidRootPart") then break end
         local rootPart = char.HumanoidRootPart
         rootPart.Anchored = false
-        rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 
         local moneyObj = (function()
             local dropFolder = workspace:FindFirstChild("Ignored") and workspace.Ignored:FindFirstChild("Drop")
@@ -330,9 +317,7 @@ local function collectNearbyMoneyDrops(maxToCollect)
                         if currentTime - lastTeleportTick < Config.TeleportWait then
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
-                        rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                         rootPart.CFrame = cf + Vector3.new(0, 1.2, 0)
-                        rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                         lastTeleportTick = tick()
                         task.wait(0.1)
                     end
@@ -705,8 +690,6 @@ task.spawn(function()
 
                     if cashierCf then
                         rootPart.Anchored = false
-                        rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                        
                         local currentTime = tick()
                         if currentTime - lastTeleportTick < Config.TeleportWait then
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
@@ -749,10 +732,8 @@ task.spawn(function()
                         unequipActiveTool()
                         task.wait(0.05)
 
-                        -- Unanchor and completely kill physics momentum before vacuuming cash
+                        -- Unanchor instantly before starting the high-speed money collection vacuum
                         rootPart.Anchored = false
-                        rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                        rootPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
                         
                         if not isPlayerDownedOrDead() then
                             collectMoneyDropsByTeleportingWithin25Studs()
@@ -763,7 +744,6 @@ task.spawn(function()
                 -- If dead, downed, or waiting for character load, pause and unanchor until respawned successfully
                 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                     LocalPlayer.Character.HumanoidRootPart.Anchored = false
-                    LocalPlayer.Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                 end
                 
                 -- Wait until the character respawns fully and is ready/alive
