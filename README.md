@@ -11,11 +11,11 @@ local LocalPlayer = Players.LocalPlayer
 
 -- Configuration
 local Config = {
-    Delay = 0.3,                          -- Faster general transition delay
-    MaxAttempts = 1,                      -- Reduced attempts for instant snap efficiency
-    TeleportWait = 2.0,                   -- Faster interval between teleports
+    Delay = 0.4,                          -- Optimized faster transition delay to next money drop
+    MaxAttempts = 2,                      -- Attempts before teleporting to the money drop
+    TeleportWait = 2.5,                   -- Faster interval between teleports
     TeleportDistanceThreshold = 5,        -- Only teleport if the drop is 5 studs away or more
-    CashierMoneyDropsToCollect = 8,       -- Expanded drop collection limit per cashier
+    CashierMoneyDropsToCollect = 6,       -- Number of money drops to collect per cashier before moving
     NotificationDuration = 3,
     RemovalRadius = 5                     -- Map objects within 5 studs around you are removed and return when you walk > 5 studs away
 }
@@ -201,6 +201,7 @@ local function interactWithMoneyNaturally(dropObj)
     if not cf or not camera then return end
 
     camera.CFrame = CFrame.new(camera.CFrame.Position, cf.Position)
+    task.wait(0.04)
 
     local screenPos, onScreen = camera:WorldToViewportPoint(cf.Position)
     if not onScreen or screenPos.Z <= 0 then return end
@@ -210,55 +211,58 @@ local function interactWithMoneyNaturally(dropObj)
 
     pcall(function()
         VirtualInputManager:SendMouseMoveEvent(x, y, workspace)
+        task.wait(0.04)
+
         VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, workspace, 0)
+        task.wait(0.04)
         VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, workspace, 0)
     end)
 end
 
--- UPGRADED HIGH-EFFICIENCY MONEY COLLECTOR: Instant sweep & vacuum for cashier drops
+-- Teleport directly to money drops within 25 studs after breaking a cashier and collect them fast
 local function collectMoneyDropsByTeleportingWithin25Studs()
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    local rootPart = char.HumanoidRootPart
-    
-    rootPart.Anchored = false
-
-    local dropFolder = workspace:FindFirstChild("Ignored") and workspace.Ignored:FindFirstChild("Drop")
-    if not dropFolder then return end
-
-    local collectedCount = 0
     local startTime = tick()
+    
+    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 3.5) do
+        local char = LocalPlayer.Character
+        if not char or not char:FindFirstChild("HumanoidRootPart") then break end
+        local rootPart = char.HumanoidRootPart
+        
+        -- Ensure completely unanchored while picking up money
+        rootPart.Anchored = false
 
-    while (isAutoFarmRunning or isCashierFarmRunning) and collectedCount < Config.CashierMoneyDropsToCollect and (tick() - startTime < 2.0) do
-        local closestDrop = nil
-        local shortestDist = 30 -- Max radius sweep
+        local dropFolder = workspace:FindFirstChild("Ignored") and workspace.Ignored:FindFirstChild("Drop")
+        if not dropFolder then 
+            task.wait(0.2)
+            continue 
+        end
 
+        local foundAny = false
         for _, obj in ipairs(dropFolder:GetChildren()) do
             if obj.Name == "MoneyDrop" and obj.Parent and not visitedDrops[obj] then
                 local cf = getObjectCFrame(obj)
                 if cf then
                     local dist = (cf.Position - rootPart.Position).Magnitude
-                    if dist < shortestDist then
-                        shortestDist = dist
-                        closestDrop = obj
+                    if dist <= 25 then
+                        foundAny = true
+                        visitedDrops[obj] = true
+                        unequipActiveTool()
+                        
+                        rootPart.CFrame = cf + Vector3.new(0, 1.2, 0)
+                        task.wait(0.08)
+                        
+                        addTrackedMoney(getMoneyValue(obj))
+                        interactWithMoneyNaturally(obj)
+                        task.wait(0.08)
                     end
                 end
             end
         end
 
-        if closestDrop then
-            visitedDrops[closestDrop] = true
-            local cf = getObjectCFrame(closestDrop)
-            if cf then
-                unequipActiveTool()
-                rootPart.CFrame = cf + Vector3.new(0, 1.0, 0)
-                addTrackedMoney(getMoneyValue(closestDrop))
-                interactWithMoneyNaturally(closestDrop)
-                collectedCount = collectedCount + 1
-                task.wait(0.02) -- Minimal ultra-fast pacing to register clicks reliably
-            end
+        if not foundAny then
+            task.wait(0.15)
         else
-            break
+            task.wait(0.05)
         end
     end
 end
@@ -269,7 +273,7 @@ local function collectNearbyMoneyDrops(maxToCollect)
     local collectTimeout = tick()
 
     while (isAutoFarmRunning or isCashierFarmRunning) and collectedCount < (maxToCollect or Config.CashierMoneyDropsToCollect) do
-        if tick() - collectTimeout > 4 then break end
+        if tick() - collectTimeout > 5 then break end
 
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then break end
@@ -319,7 +323,7 @@ local function collectNearbyMoneyDrops(maxToCollect)
                         end
                         rootPart.CFrame = cf + Vector3.new(0, 1.2, 0)
                         lastTeleportTick = tick()
-                        task.wait(0.1)
+                        task.wait(0.2)
                     end
                 end
                 
@@ -332,7 +336,7 @@ local function collectNearbyMoneyDrops(maxToCollect)
             collectedCount = collectedCount + 1
             task.wait(Config.Delay)
         else
-            task.wait(0.2)
+            task.wait(0.3)
         end
     end
 end
@@ -698,16 +702,16 @@ task.spawn(function()
                         local targetBaseCFrame = cashierCf + Vector3.new(0, 3, 0)
                         rootPart.CFrame = targetBaseCFrame
                         lastTeleportTick = tick()
-                        task.wait(0.2)
+                        task.wait(0.3)
 
                         local lockedPositionCFrame = cashierCf
                         rootPart.CFrame = lockedPositionCFrame
                         
-                        -- Anchor tightly while breaking the cashier
+                        -- Anchor tightly while farming the cashier
                         rootPart.Anchored = true
 
                         equipCombatTool()
-                        task.wait(0.1)
+                        task.wait(0.15)
 
                         local startTime = tick()
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do
@@ -726,13 +730,13 @@ task.spawn(function()
                                 end
                             end)
 
-                            task.wait(0.1)
+                            task.wait(0.2)
                         end
 
                         unequipActiveTool()
-                        task.wait(0.05)
+                        task.wait(0.1)
 
-                        -- Unanchor instantly before starting the high-speed money collection vacuum
+                        -- Unanchor right before collecting money drops
                         rootPart.Anchored = false
                         
                         if not isPlayerDownedOrDead() then
