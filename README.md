@@ -14,7 +14,7 @@ local Config = {
     MaxAttempts = 2,                                        
     TeleportWait = 1.0,                                         
     NotificationDuration = 3,
-    CollectCooldown = 0.2, -- Faster money drop pickup cooldown
+    CollectCooldown = 0.3, -- Exactly 0.3 seconds cooldown for click detector fire
 }
 
 -- State Variables
@@ -187,8 +187,10 @@ end)
 local function collectMoneyViaClickDetector(dropObj)
     if not dropObj or not dropObj.Parent then return false end
 
-    if tick() - lastCollectTick < Config.CollectCooldown then
-        return false
+    -- Enforce the 0.3 second interval between clicks
+    local timeSinceLast = tick() - lastCollectTick
+    if timeSinceLast < Config.CollectCooldown then
+        task.wait(Config.CollectCooldown - timeSinceLast)
     end
 
     local success = false
@@ -215,11 +217,11 @@ local function collectMoneyViaClickDetector(dropObj)
     return false
 end
 
--- FAST MONEY COLLECTOR SWEEP (Shortened timeout so it moves on quickly)
-local function collectMoneyDropsByTweeningWithin30Studs()
+-- COMPLETE MONEY COLLECTION SWEEP (Collects ALL drops before returning control)
+local function collectAllMoneyDropsWithin35Studs()
     local startTime = tick()
     
-    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 1.5) do
+    while (isAutoFarmRunning or isCashierFarmRunning) and (tick() - startTime < 10) do
         local char = LocalPlayer.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then break end
         local rootPart = char.HumanoidRootPart
@@ -253,9 +255,12 @@ local function collectMoneyDropsByTweeningWithin30Studs()
             return a.dist < b.dist
         end)
 
+        -- If no drops are left nearby, exit loop and move to next cashier
         if #availableDrops == 0 then
             break
         else
+            -- Process each drop instantly, moving to the next one right after
+            local collectedAny = false
             for _, dropData in ipairs(availableDrops) do
                 if not dropData.obj.Parent then continue end
                 unequipActiveTool()
@@ -264,7 +269,7 @@ local function collectMoneyDropsByTweeningWithin30Studs()
                 local targetCf = CFrame.new(targetPos, targetPos + Vector3.new(0, 0, -1))
                 
                 local distance = (rootPart.Position - targetPos).Magnitude
-                local tweenDuration = math.clamp(distance / 70, 0.05, 0.25)
+                local tweenDuration = math.clamp(distance / 120, 0.02, 0.1)
                 
                 local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
                 local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCf})
@@ -272,7 +277,11 @@ local function collectMoneyDropsByTweeningWithin30Studs()
                 tween.Completed:Wait()
                 
                 collectMoneyViaClickDetector(dropData.obj)
-                task.wait(0.05)
+                collectedAny = true
+            end
+
+            if not collectedAny then
+                task.wait(0.1)
             end
         end
     end
@@ -548,7 +557,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---      CASHIER FARM LOGIC (ORIGINAL ATTACKING & FAST COLLECTION) --
+--      CASHIER FARM LOGIC (ORIGINAL ATTACKING & COMPLETE COLLECTION) --
 --[================================================================]--
 
 task.spawn(function()
@@ -636,9 +645,9 @@ task.spawn(function()
 
                         rootPart.Anchored = false
                         
-                        -- QUICK MONEY COLLECTION & FAST SWITCH TO NEXT CASHIER
+                        -- COLLECT EVERY PIECE OF MONEY BEFORE MOVING ON TO NEXT CASHIER
                         if not isPlayerDownedOrDead() then
-                            collectMoneyDropsByTweeningWithin30Studs()
+                            collectAllMoneyDropsWithin35Studs()
                         end
                     end
                 end
