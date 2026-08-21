@@ -538,7 +538,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---               CASHIER FARM LOGIC (FIXED CHARGE ATTACK)           --
+--             CASHIER FARM LOGIC (HARD ANCHORED)                   --
 --[================================================================]--
 
 task.spawn(function()
@@ -579,14 +579,12 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        rootPart.CFrame = cashierCf + Vector3.new(0, 3, 0)
+                        -- Initial teleport right inside the cashier
+                        rootPart.CFrame = cashierCf
                         lastTeleportTick = tick()
                         task.wait(0.2)
 
-                        local lockedPositionCFrame = cashierCf
-                        rootPart.CFrame = lockedPositionCFrame
                         rootPart.Anchored = true
-
                         equipCombatTool()
                         task.wait(0.1)
 
@@ -595,24 +593,20 @@ task.spawn(function()
                             if tick() - startTime > 10 then break end 
                             if not isValidCashier(cashier) then break end
 
-                            local currentDist = (rootPart.Position - lockedPositionCFrame.Position).Magnitude
-                            if currentDist > 2 then
-                                rootPart.Anchored = false
-                                rootPart.CFrame = lockedPositionCFrame
-                                task.wait(0.02)
-                                rootPart.Anchored = true
-                            end
+                            -- Continually force position and keep hard-anchored inside the cashier
+                            rootPart.Anchored = true
+                            rootPart.CFrame = cashierCf
 
                             equipCombatTool()
 
-                            -- Corrected Charge Attack Sequence
+                            -- Charge Attack Sequence
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(1.3) -- Restored 1.3s charge window for punch registration
+                                task.wait(1.3) 
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
-                            task.wait(0.2)
+                            task.wait(0.1)
                         end
 
                         unequipActiveTool()
