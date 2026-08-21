@@ -203,7 +203,8 @@ local function interactWithMoneyNaturally(dropObj)
     local screenPos, onScreen = camera:WorldToViewportPoint(cf.Position)
     if not onScreen or screenPos.Z <= 0 then return end
 
-    local x, y = screenPos.X - 20, screenPos.Y
+    -- Shifted slightly to the right by adding 10 pixels to X
+    local x, y = screenPos.X - 10, screenPos.Y
 
     pcall(function()
         VirtualInputManager:SendMouseMoveEvent(x, y, workspace)
@@ -214,27 +215,32 @@ local function interactWithMoneyNaturally(dropObj)
     end)
 end
 
--- Anti-Fling & Upright Stabilizer Loop
+-- Strict Upright Stabilizer (Prevents tipping, flinging, and locking rotation completely flat)
 RunService.Heartbeat:Connect(function()
     if isAutoFarmRunning or isCashierFarmRunning then
         local char = LocalPlayer.Character
         if char then
             local rootPart = char:FindFirstChild("HumanoidRootPart")
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
             if rootPart then
-                -- Lock orientation so player stays completely upright and never flips/flings
+                if humanoid then
+                    humanoid.PlatformStand = false
+                end
+                -- Force completely upright orientation (Lock roll/pitch to 0)
                 local currentPos = rootPart.Position
-                local lookVector = rootPart.CFrame.LookVector
-                -- Strip pitch and roll to force completely vertical stance
-                local flatLook = Vector3.new(lookVector.X, 0, lookVector.Z)
+                local lookVec = rootPart.CFrame.LookVector
+                local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
                 if flatLook.Magnitude > 0.01 then
                     rootPart.CFrame = CFrame.new(currentPos, currentPos + flatLook)
+                    rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
+                    rootPart.AssemblyAngularVelocity = Vector3.zero
                 end
             end
         end
     end
 end)
 
--- Slow, smooth glide directly to each piece of money while staying upright
+-- Slow, smooth glide directly to each piece of money while locked strictly upright
 local function collectMoneyDropsByTweeningWithin20Studs()
     local startTime = tick()
     
@@ -265,7 +271,6 @@ local function collectMoneyDropsByTweeningWithin20Studs()
                         foundAny = true
                         unequipActiveTool()
                         
-                        -- Keep upright while creating target CFrame
                         local lookVec = rootPart.CFrame.LookVector
                         local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
                         if flatLook.Magnitude < 0.01 then flatLook = Vector3.new(0, 0, -1) end
@@ -613,7 +618,6 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
-                        -- Keep upright when tweening to cashier
                         local lookVec = rootPart.CFrame.LookVector
                         local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
                         if flatLook.Magnitude < 0.01 then flatLook = Vector3.new(0, 0, -1) end
