@@ -11,13 +11,13 @@ local LocalPlayer = Players.LocalPlayer
 
 -- Configuration
 local Config = {
-    Delay = 0.8,                        -- Transition delay to next money drop
-    MaxAttempts = 2,                    -- Attempts before teleporting to the money drop
-    TeleportWait = 4.0,                 -- Slower 4-second interval between teleports
-    TeleportDistanceThreshold = 5,      -- Only teleport if the drop is 5 studs away or more
-    CashierMoneyDropsToCollect = 6,     -- Number of money drops to collect per cashier before moving
+    Delay = 0.8,                          -- Transition delay to next money drop
+    MaxAttempts = 2,                      -- Attempts before teleporting to the money drop
+    TeleportWait = 4.0,                   -- Slower 4-second interval between teleports
+    TeleportDistanceThreshold = 5,        -- Only teleport if the drop is 5 studs away or more
+    CashierMoneyDropsToCollect = 6,       -- Number of money drops to collect per cashier before moving
     NotificationDuration = 3,
-    RemovalRadius = 5                   -- Map objects within 5 studs around you are removed and return when you walk > 5 studs away
+    RemovalRadius = 5                     -- Map objects within 5 studs around you are removed and return when you walk > 5 studs away
 }
 
 -- State Variables
@@ -32,7 +32,7 @@ local activeFarmingTime = 0
 local lastTickTime = tick()
 
 --[================================================================]--
---                            UTILITY FUNCTIONS                     --
+--                          UTILITY FUNCTIONS                       --
 --[================================================================]--
 
 local function sendNotification(title, text)
@@ -192,7 +192,7 @@ task.spawn(function()
     end
 end)
 
--- Simulate natural screen tap/hover directly on the MoneyDrop object with a right offset
+-- Simulate natural screen tap/hover directly on the MoneyDrop object with a left offset
 local function interactWithMoneyNaturally(dropObj)
     if not dropObj or not dropObj.Parent then return end
 
@@ -206,7 +206,8 @@ local function interactWithMoneyNaturally(dropObj)
     local screenPos, onScreen = camera:WorldToViewportPoint(cf.Position)
     if not onScreen or screenPos.Z <= 0 then return end
 
-    local x, y = screenPos.X, screenPos.Y
+    -- Shifted X coordinate to the left by 20 pixels
+    local x, y = screenPos.X - 20, screenPos.Y
 
     pcall(function()
         VirtualInputManager:SendMouseMoveEvent(x, y, workspace)
@@ -847,4 +848,3 @@ MinimizeButton.MouseButton1Click:Connect(function()
         TweenService:Create(MainFrame, TweenInfo.new(0.2), {Size = UDim2.new(0, 320, 0, 420)}):Play()
     end
 end)
-
