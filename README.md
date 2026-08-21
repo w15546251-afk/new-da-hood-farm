@@ -15,6 +15,7 @@ local Config = {
     TeleportWait = 1.0,                                         
     NotificationDuration = 3,
     CollectCooldown = 0.2, 
+    CashierAttackDelay = 0.8, -- Controls cashier attack speed
 }
 
 -- State Variables
@@ -215,7 +216,7 @@ local function collectMoneyViaClickDetector(dropObj)
     return false
 end
 
--- THOROUGH 25-STUD MONEY COLLECTION SWEEP (Ensures all drops are completely picked up)
+-- THOROUGH 25-STUD MONEY COLLECTION SWEEP (Tweens made slower here)
 local function collectAllMoneyDropsWithin25Studs()
     local startTime = tick()
     
@@ -264,7 +265,8 @@ local function collectAllMoneyDropsWithin25Studs()
                 local targetCf = CFrame.new(targetPos, targetPos + Vector3.new(0, 0, -1))
                 
                 local distance = (rootPart.Position - targetPos).Magnitude
-                local tweenDuration = math.clamp(distance / 35, 0.1, 0.4)
+                -- Slower tween duration for money drop collection (adjusted divisor from 35 to 15)
+                local tweenDuration = math.clamp(distance / 15, 0.4, 1.2)
                 
                 local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
                 local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCf})
@@ -548,7 +550,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---       CASHIER FARM LOGIC (EXCLUDES VAULT, HP <= 200, 25-STUD SWEEP)
+--      CASHIER FARM LOGIC (EXCLUDES VAULT, HP <= 200, 25-STUD SWEEP)
 --[================================================================]--
 
 task.spawn(function()
@@ -599,7 +601,7 @@ task.spawn(function()
                     -- Check if cashier has Humanoid and Health is <= 200
                     local cashierHumanoid = cashier:FindFirstChildOfClass("Humanoid")
                     if cashierHumanoid and cashierHumanoid.Health > 200 then
-                        continue -- Skip this cashier if HP is above 200
+                        continue
                     end
 
                     local damagePart = getCashierDamagePart(cashier)
@@ -614,7 +616,8 @@ task.spawn(function()
                         local targetCashierCf = CFrame.new(partPos, partPos + damagePart.CFrame.LookVector)
 
                         local distance = (rootPart.Position - partPos).Magnitude
-                        local tweenDuration = math.clamp(distance / 200, 0.2, 0.8)
+                        -- Slower tween duration to travel between cashiers (adjusted divisor from 200 to 70)
+                        local tweenDuration = math.clamp(distance / 70, 0.6, 2.0)
                         
                         local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
                         local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCashierCf})
@@ -647,7 +650,8 @@ task.spawn(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
-                            task.wait(0.3)
+                            -- Slower attack loop controlled by Config.CashierAttackDelay
+                            task.wait(Config.CashierAttackDelay)
                         end
 
                         unequipActiveTool()
@@ -655,7 +659,6 @@ task.spawn(function()
 
                         rootPart.Anchored = false
                         
-                        -- Thorough money collection sweep ensuring ALL drops in 25 studs are collected
                         if not isPlayerDownedOrDead() then
                             collectAllMoneyDropsWithin25Studs()
                         end
