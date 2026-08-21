@@ -11,13 +11,13 @@ local LocalPlayer = Players.LocalPlayer
 
 -- Configuration
 local Config = {
-    Delay = 0.5,                        
-    MaxAttempts = 2,                    
-    TeleportWait = 3.0,                 
+    Delay = 0.5,                                        
+    MaxAttempts = 2,                                    
+    TeleportWait = 3.0,                                 
     TeleportDistanceThreshold = 5,      
     CashierMoneyDropsToCollect = 4,     
     NotificationDuration = 3,
-    RemovalRadius = 5                   
+    RemovalRadius = 5                                   
 }
 
 -- State Variables
@@ -38,7 +38,7 @@ local DropFolder = IgnoredFolder and IgnoredFolder:WaitForChild("Drop", 5)
 local CashiersFolder = WorkspaceFolder:WaitForChild("Cashiers", 5)
 
 --[================================================================]--
---                         UTILITY FUNCTIONS                         --
+--                    UTILITY FUNCTIONS                             --
 --[================================================================]--
 
 local function sendNotification(title, text)
@@ -99,7 +99,6 @@ local function getCashierDamagePart(cashier)
     if cashier:IsA("BasePart") then
         return cashier
     elseif cashier:IsA("Model") then
-        -- Check common damageable part names or fallback to primary part / first basepart
         local hitPart = cashier:FindFirstChild("HumanoidRootPart") or cashier:FindFirstChild("Head") or cashier.PrimaryPart
         if not hitPart then
             for _, descendant in ipairs(cashier:GetDescendants()) do
@@ -588,7 +587,7 @@ task.spawn(function()
 end)
 
 --[================================================================]--
---             CASHIER FARM LOGIC (TWEEN & ATTACK)                  --
+--             CASHIER FARM LOGIC (FIXED & OPTIMIZED)              --
 --[================================================================]--
 
 task.spawn(function()
@@ -618,7 +617,7 @@ task.spawn(function()
 
                 for _, cashier in ipairs(cashiers) do
                     if not isCashierFarmRunning or isPlayerDownedOrDead() then break end
-                    if not isValidCashier(cashier) then continue end
+                    if not cashier or not cashier.Parent then continue end
 
                     local damagePart = getCashierDamagePart(cashier)
                     if damagePart and damagePart:IsA("BasePart") then
@@ -630,9 +629,7 @@ task.spawn(function()
                         
                         -- Position character directly right next to the exact damage part
                         local partPos = damagePart.Position
-                        local standPos = partPos + (damagePart.CFrame.LookVector * 1.5) + Vector3.new(0, 0, 0)
-                        
-                        -- Look directly at the damageable part to ensure register hit alignment
+                        local standPos = partPos + (damagePart.CFrame.LookVector * 1.5)
                         local targetCashierCf = CFrame.new(standPos, partPos)
 
                         local distance = (rootPart.Position - standPos).Magnitude
@@ -652,20 +649,26 @@ task.spawn(function()
                         task.wait(0.1)
 
                         local startTime = tick()
+                        
+                        -- LOCKED LOOP: Stays until cashier is completely destroyed (Health <= 0) or times out
                         while isCashierFarmRunning and cashier and cashier.Parent and not isPlayerDownedOrDead() do
-                            if tick() - startTime > 10 then break end 
-                            if not isValidCashier(cashier) then break end
+                            if tick() - startTime > 15 then break end 
 
+                            local humanoid = cashier:FindFirstChild("Humanoid")
+                            if humanoid and humanoid.Health <= 0 then
+                                break
+                            end
+
+                            rootPart.CFrame = CFrame.new(rootPart.Position, damagePart.Position)
                             equipCombatTool()
 
-                            -- 1.4s Charge Attack Sequence directly targeting the register part
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(1.4) 
+                                task.wait(1.2) 
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
-                            task.wait(0.1)
+                            task.wait(0.05)
                         end
 
                         unequipActiveTool()
