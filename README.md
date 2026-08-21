@@ -665,10 +665,10 @@ task.spawn(function()
                             rootPart.Anchored = false 
                             equipCombatTool()
 
-                            -- Send click input to attack
+                            -- Send charge attack: press down, hold for 1.4 seconds, then release
                             pcall(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, workspace, 0)
-                                task.wait(0.05)
+                                task.wait(1.4)
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
