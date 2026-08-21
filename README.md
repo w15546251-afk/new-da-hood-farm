@@ -216,7 +216,7 @@ local function collectMoneyViaClickDetector(dropObj)
     return false
 end
 
--- THOROUGH 25-STUD MONEY COLLECTION SWEEP (Tweens made slower here)
+-- THOROUGH 25-STUD MONEY COLLECTION SWEEP
 local function collectAllMoneyDropsWithin25Studs()
     local startTime = tick()
     
@@ -265,7 +265,6 @@ local function collectAllMoneyDropsWithin25Studs()
                 local targetCf = CFrame.new(targetPos, targetPos + Vector3.new(0, 0, -1))
                 
                 local distance = (rootPart.Position - targetPos).Magnitude
-                -- Slower tween duration for money drop collection (adjusted divisor from 35 to 15)
                 local tweenDuration = math.clamp(distance / 15, 0.4, 1.2)
                 
                 local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
@@ -612,11 +611,12 @@ task.spawn(function()
                             task.wait(Config.TeleportWait - (currentTime - lastTeleportTick))
                         end
                         
+                        -- Offset position 2 studs away using the look vector (or back vector)
                         local partPos = damagePart.Position
-                        local targetCashierCf = CFrame.new(partPos, partPos + damagePart.CFrame.LookVector)
+                        local offsetPos = partPos - (damagePart.CFrame.LookVector * 2)
+                        local targetCashierCf = CFrame.new(offsetPos, partPos)
 
-                        local distance = (rootPart.Position - partPos).Magnitude
-                        -- Slower tween duration to travel between cashiers (adjusted divisor from 200 to 70)
+                        local distance = (rootPart.Position - offsetPos).Magnitude
                         local tweenDuration = math.clamp(distance / 70, 0.6, 2.0)
                         
                         local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
@@ -650,7 +650,6 @@ task.spawn(function()
                                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, workspace, 0)
                             end)
 
-                            -- Slower attack loop controlled by Config.CashierAttackDelay
                             task.wait(Config.CashierAttackDelay)
                         end
 
